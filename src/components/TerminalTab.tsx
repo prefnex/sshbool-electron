@@ -53,6 +53,8 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [currentCommand, setCurrentCommand] = useState('')
   const [showSftpManager, setShowSftpManager] = useState(false)
+  const [connectionCheckInterval, setConnectionCheckInterval] = useState<NodeJS.Timeout | null>(null)
+  const [lastDataReceived, setLastDataReceived] = useState<Date>(new Date())
   
   const { terminals, connections, terminalTheme, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
   
@@ -76,19 +78,21 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       theme: currentTheme.colors,
       allowTransparency: false,
       convertEol: true,
-      scrollback: 5000,
+      scrollback: 10000, // Increased scrollback buffer
       tabStopWidth: 4,
       rows: 30,
       cols: 100,
       // Improve performance and reduce shaking
       fastScrollModifier: 'alt',
       fastScrollSensitivity: 5,
-      scrollSensitivity: 1,
+      scrollSensitivity: 3, // Better scroll sensitivity
       // Improve rendering performance
       disableStdin: false,
       windowsMode: false,
       macOptionIsMeta: true,
       minimumContrastRatio: 1,
+      // Enable mouse wheel scrolling
+      smoothScrollDuration: 125,
       // Disable problematic features that cause issues
       altClickMovesCursor: false,
       rightClickSelectsWord: false
@@ -117,60 +121,70 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     xterm.writeln(`📡 Connecting to \x1b[1;32m${connection.username}@${connection.host}:${connection.port}\x1b[0m`)
     xterm.writeln('')
 
-    // Auto-copy on selection
+    // Auto-copy on selection with debouncing
+    let selectionTimer: NodeJS.Timeout | null = null
     xterm.onSelectionChange(() => {
       const selection = xterm.getSelection()
       if (selection && selection.length > 0) {
-        try {
-          navigator.clipboard.writeText(selection).then(() => {
-            console.log('Text copied to clipboard:', selection)
-            // Show a subtle toast notification
-            toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
-              duration: 2000,
-              style: {
-                background: '#0a0a0a',
-                color: '#00ff88',
-                border: '1px solid #00ff88',
-                fontSize: '12px'
-              }
-            })
-          }).catch(() => {
-            // Fallback for older browsers
-            const textArea = document.createElement('textarea')
-            textArea.value = selection
-            document.body.appendChild(textArea)
-            textArea.select()
-            document.execCommand('copy')
-            document.body.removeChild(textArea)
-            console.log('Text copied to clipboard (fallback):', selection)
-            toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
-              duration: 2000,
-              style: {
-                background: '#0a0a0a',
-                color: '#00ff88',
-                border: '1px solid #00ff88',
-                fontSize: '12px'
-              }
-            })
-          })
-        } catch (error) {
-          console.error('Failed to copy text to clipboard:', error)
-          toast.error('فشل في نسخ النص', {
-            duration: 2000,
-            style: {
-              background: '#0a0a0a',
-              color: '#ff6b6b',
-              border: '1px solid #ff6b6b',
-              fontSize: '12px'
-            }
-          })
+        // Clear existing timer
+        if (selectionTimer) {
+          clearTimeout(selectionTimer)
         }
+        
+        // Set new timer to copy after a short delay
+        selectionTimer = setTimeout(() => {
+          try {
+            navigator.clipboard.writeText(selection).then(() => {
+              console.log('Text copied to clipboard:', selection)
+              // Show a subtle toast notification
+              toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
+                duration: 1500,
+                style: {
+                  background: '#0a0a0a',
+                  color: '#00ff88',
+                  border: '1px solid #00ff88',
+                  fontSize: '12px'
+                }
+              })
+            }).catch(() => {
+              // Fallback for older browsers
+              const textArea = document.createElement('textarea')
+              textArea.value = selection
+              document.body.appendChild(textArea)
+              textArea.select()
+              document.execCommand('copy')
+              document.body.removeChild(textArea)
+              console.log('Text copied to clipboard (fallback):', selection)
+              toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
+                duration: 1500,
+                style: {
+                  background: '#0a0a0a',
+                  color: '#00ff88',
+                  border: '1px solid #00ff88',
+                  fontSize: '12px'
+                }
+              })
+            })
+          } catch (error) {
+            console.error('Failed to copy text to clipboard:', error)
+            toast.error('فشل في نسخ النص', {
+              duration: 1500,
+              style: {
+                background: '#0a0a0a',
+                color: '#ff6b6b',
+                border: '1px solid #ff6b6b',
+                fontSize: '12px'
+              }
+            })
+          }
+        }, 100) // Wait 100ms before copying
       }
     })
 
-    // Handle input with improved reliability and debouncing
+    // Handle input with improved reliability
     let inputBuffer = '';
     let inputTimer: NodeJS.Timeout | null = null;
+    let lastInputTime = Date.now();
     
     const flushInput = () => {
       if (inputBuffer && isConnected) {
@@ -181,9 +195,15 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     };
 
     xterm.onData((data) => {
-      if (!isConnected) {
-        // Show connection status if trying to input while disconnected
-        xterm.write('\r\n\x1b[91m⚠️  Not connected to server. Please reconnect.\x1b[0m\r\n')
+      // Check connection status more reliably
+      const connection = sshService.getConnection(connectionId)
+      if (!connection || !connection.isConnected) {
+        // Don't spam the error message
+        const now = Date.now()
+        if (now - lastInputTime > 2000) {
+          xterm.write('\r\n\x1b[91m⚠️  Not connected to server. Please reconnect.\x1b[0m\r\n')
+          lastInputTime = now
+        }
         return
       }
 
@@ -208,11 +228,11 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       } else {
         // Buffer regular characters
         inputBuffer += data
-        // Set timer to flush after short delay
-        inputTimer = setTimeout(flushInput, 5)
+        // Set timer to flush after very short delay for better responsiveness
+        inputTimer = setTimeout(flushInput, 2)
         
         // If buffer gets too large, flush immediately
-        if (inputBuffer.length > 100) {
+        if (inputBuffer.length > 50) {
           flushInput()
         }
       }
@@ -238,11 +258,34 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     // Connect to SSH
     connectToSSH()
 
+    // Set up connection health check
+    const checkConnectionHealth = setInterval(async () => {
+      if (connection) {
+        const isStillConnected = await sshService.isConnected(connection.id)
+        if (isStillConnected !== isConnected) {
+          setIsConnected(isStillConnected)
+          if (!isStillConnected && !connectionError) {
+            setConnectionError('Connection lost')
+          }
+        }
+      }
+    }, 5000) // Check every 5 seconds
+
+    setConnectionCheckInterval(checkConnectionHealth)
+
     // Cleanup
     return () => {
       // Clear any pending timers
       if (inputTimer) {
         clearTimeout(inputTimer)
+      }
+      
+      if (selectionTimer) {
+        clearTimeout(selectionTimer)
+      }
+      
+      if (checkConnectionHealth) {
+        clearInterval(checkConnectionHealth)
       }
       
       // Flush any remaining input
@@ -306,18 +349,40 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
         setIsConnected(true)
         setConnectionError(null)
         
-        // Start shell
+        // Start shell with a small delay to ensure connection is stable
+        await new Promise(resolve => setTimeout(resolve, 100))
         await sshService.startShell(connection.id)
         
-        toast.success(`Connected to ${connection.host}`)
+        toast.success(`✅ Connected to ${connection.host}`, {
+          duration: 2000,
+          style: {
+            background: '#0a0a0a',
+            color: '#00ff88',
+            border: '1px solid #00ff88'
+          }
+        })
       } else {
         setConnectionError('Failed to connect')
-        toast.error('SSH connection failed')
+        toast.error('❌ SSH connection failed', {
+          duration: 3000,
+          style: {
+            background: '#0a0a0a',
+            color: '#ff6b6b',
+            border: '1px solid #ff6b6b'
+          }
+        })
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setConnectionError(errorMessage)
-      toast.error(`Connection failed: ${errorMessage}`)
+      toast.error(`❌ Connection failed: ${errorMessage}`, {
+        duration: 3000,
+        style: {
+          background: '#0a0a0a',
+          color: '#ff6b6b',
+          border: '1px solid #ff6b6b'
+        }
+      })
     } finally {
       setIsConnecting(false)
     }
@@ -326,8 +391,9 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const handleSSHOutput = (output: SSHOutput) => {
     if (!xtermRef.current) return
 
-    // Update activity
+    // Update activity and last data received time
     updateTerminalActivity(terminalId)
+    setLastDataReceived(new Date())
     
     // Mark as unread if not active
     if (!isActive) {
@@ -339,16 +405,28 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       switch (output.type) {
         case 'stdout':
           // Write stdout data as-is for better compatibility
-          xtermRef.current.write(output.data)
+          // Filter out duplicate prompts and clean output
+          let cleanData = output.data
+          // Remove duplicate prompt patterns
+          cleanData = cleanData.replace(/(ubuntu@[^:]+:~\$\s*){2,}/g, '$1')
+          xtermRef.current.write(cleanData)
           break
         case 'stderr':
           xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
           break
         case 'info':
-          xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`) // Blue for info
+          // Don't write repetitive info messages
+          if (!output.data.includes('Interactive shell started')) {
+            xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`) // Blue for info
+          }
           break
         case 'error':
           xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
+          // If we get an error, update connection status
+          if (output.data.includes('closed') || output.data.includes('disconnect')) {
+            setIsConnected(false)
+            setConnectionError('Connection closed')
+          }
           break
       }
     } catch (error) {

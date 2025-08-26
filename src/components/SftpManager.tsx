@@ -54,8 +54,8 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
   const connection = connections.find(c => c.id === connectionId)
 
   const [remoteFiles, setRemoteFiles] = useState<SftpFile[]>([])
-  const [currentPath, setCurrentPath] = useState('/')
-  const [pathHistory, setPathHistory] = useState<string[]>([])
+  const [currentPath, setCurrentPath] = useState('/home')
+  const [pathHistory, setPathHistory] = useState<string[]>(['/'])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'size' | 'date'>('name')
@@ -74,34 +74,65 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
   const loadDirectory = async (path: string) => {
     if (!connection) return
 
+    // Ensure path is valid
+    let validPath = path
+    if (!validPath || validPath === '') {
+      validPath = '/'
+    }
+    
     setLoading(true)
     try {
-      const files = await sshService.listDirectory(connectionId, path)
+      const files = await sshService.listDirectory(connectionId, validPath)
+      
+      if (!files || !Array.isArray(files)) {
+        console.warn('No files returned or invalid response')
+        setRemoteFiles([])
+        return
+      }
       
       // Convert to our SftpFile format
-      const sftpFiles: SftpFile[] = files.map(file => ({
-        name: file.filename,
-        type: (file.attrs.mode & 0o040000) ? 'directory' : 'file', // Check directory bit mask
-        size: file.attrs.size || 0,
-        modified: new Date((file.attrs.mtime || Date.now() / 1000) * 1000),
-        permissions: file.attrs.mode ? file.attrs.mode.toString(8) : '644',
-        owner: file.attrs.uid?.toString() || 'unknown',
-        group: file.attrs.gid?.toString() || 'unknown'
-      }))
+      const sftpFiles: SftpFile[] = files
+        .filter(file => file && file.filename && file.filename !== '.' && file.filename !== '..')
+        .map(file => ({
+          name: file.filename,
+          type: (file.attrs && (file.attrs.mode & 0o040000)) ? 'directory' : 'file', // Check directory bit mask
+          size: file.attrs?.size || 0,
+          modified: new Date((file.attrs?.mtime || Date.now() / 1000) * 1000),
+          permissions: file.attrs?.mode ? file.attrs.mode.toString(8) : '644',
+          owner: file.attrs?.uid?.toString() || 'unknown',
+          group: file.attrs?.gid?.toString() || 'unknown'
+        }))
 
       setRemoteFiles(sftpFiles)
     } catch (error) {
       console.error('Failed to load directory:', error)
       toast.error(`فشل في تحميل المجلد: ${error.message}`)
+      // Try to navigate to home if current path fails
+      if (validPath !== '/home' && validPath !== '/') {
+        toast.info('محاولة الانتقال إلى المجلد الرئيسي...')
+        setCurrentPath('/home')
+      }
     } finally {
       setLoading(false)
     }
   }
 
   const navigateToPath = (path: string) => {
-    if (path !== currentPath) {
+    // Normalize path - ensure it starts with /
+    let normalizedPath = path
+    if (!normalizedPath.startsWith('/')) {
+      normalizedPath = '/' + normalizedPath
+    }
+    // Remove duplicate slashes
+    normalizedPath = normalizedPath.replace(/\/+/g, '/')
+    // Remove trailing slash unless it's root
+    if (normalizedPath !== '/' && normalizedPath.endsWith('/')) {
+      normalizedPath = normalizedPath.slice(0, -1)
+    }
+    
+    if (normalizedPath !== currentPath) {
       setPathHistory(prev => [...prev, currentPath])
-      setCurrentPath(path)
+      setCurrentPath(normalizedPath)
     }
   }
 
@@ -114,13 +145,26 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
   }
 
   const goToParent = () => {
-    const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/'
-    navigateToPath(parentPath)
+    if (currentPath === '/') return
+    const parts = currentPath.split('/').filter(p => p)
+    if (parts.length > 0) {
+      parts.pop()
+      const parentPath = parts.length > 0 ? '/' + parts.join('/') : '/'
+      navigateToPath(parentPath)
+    } else {
+      navigateToPath('/')
+    }
   }
 
   const handleFileClick = (file: SftpFile) => {
     if (file.type === 'directory') {
-      const newPath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`
+      // Build proper path without duplicates
+      let newPath: string
+      if (currentPath === '/') {
+        newPath = '/' + file.name
+      } else {
+        newPath = currentPath + '/' + file.name
+      }
       navigateToPath(newPath)
     }
   }
@@ -313,6 +357,7 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
               size="sm"
               onClick={goBack}
               disabled={pathHistory.length === 0}
+              title="Back"
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
@@ -321,6 +366,16 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
               variant="outline"
               size="sm"
               onClick={() => navigateToPath('/')}
+              title="Root /"
+            >
+              <Server className="w-4 h-4" />
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigateToPath('/home')}
+              title="Home"
             >
               <Home className="w-4 h-4" />
             </Button>
@@ -330,21 +385,34 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
               size="sm"
               onClick={goToParent}
               disabled={currentPath === '/'}
+              title="Parent Directory"
             >
               <Folder className="w-4 h-4" />
             </Button>
 
-            <div className="sftp-input flex-1">
+            <Separator orientation="vertical" className="h-6" />
+
+            <div className="sftp-input flex-1 flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Path:</span>
               <Input
                 value={currentPath}
-                onChange={(e) => setCurrentPath(e.target.value)}
+                onChange={(e) => {
+                  const newPath = e.target.value
+                  setCurrentPath(newPath)
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     navigateToPath(currentPath)
                   }
                 }}
-                className="w-full"
-                placeholder="مسار المجلد"
+                onBlur={() => {
+                  // Navigate to path when input loses focus
+                  if (currentPath !== '') {
+                    navigateToPath(currentPath)
+                  }
+                }}
+                className="w-full font-mono text-sm"
+                placeholder="/path/to/directory"
                 autoComplete="off"
                 spellCheck={false}
                 type="text"

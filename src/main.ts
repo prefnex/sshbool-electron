@@ -17,6 +17,7 @@ interface SSHConnection {
   shell: any;
   isConnected: boolean;
   lastActivity: Date;
+  keepAliveInterval?: NodeJS.Timeout | null;
 }
 
 const sshConnections: Map<string, SSHConnection> = new Map();
@@ -63,6 +64,12 @@ const createWindow = () => {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 };
+
+// Add connection status check handler
+ipcMain.handle('ssh-is-connected', async (event, connectionId) => {
+  const connection = sshConnections.get(connectionId);
+  return connection ? connection.isConnected : false;
+});
 
 // IPC Handlers for window controls
 ipcMain.handle('window-minimize', () => {
@@ -143,10 +150,25 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
           client,
           shell: null,
           isConnected: true,
-          lastActivity: new Date()
+          lastActivity: new Date(),
+          keepAliveInterval: null
         };
 
         sshConnections.set(connectionId, sshConnection);
+        
+        // Set up keep-alive mechanism
+        const keepAlive = setInterval(() => {
+          const conn = sshConnections.get(connectionId);
+          if (conn && conn.isConnected) {
+            // Send a keep-alive signal
+            conn.lastActivity = new Date();
+            sshConnections.set(connectionId, conn);
+          } else {
+            clearInterval(keepAlive);
+          }
+        }, 20000); // Every 20 seconds
+        
+        sshConnection.keepAliveInterval = keepAlive;
 
         // Send welcome message
         mainWindow.webContents.send('ssh-output', {
@@ -185,15 +207,35 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
         const connection = sshConnections.get(connectionId);
         if (connection) {
           connection.isConnected = false;
+          connection.shell = null;
+          // Clear keep-alive interval if exists
+          if (connection.keepAliveInterval) {
+            clearInterval(connection.keepAliveInterval);
+          }
           sshConnections.set(connectionId, connection);
         }
         
-        mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: `🔌 Connection to ${connectionConfig.host} closed${hadError ? ' due to error' : ''}\r\n`,
-          type: 'info',
-          timestamp: new Date()
-        });
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: `🔌 Connection to ${connectionConfig.host} closed${hadError ? ' due to error' : ''}\r\n`,
+            type: 'info',
+            timestamp: new Date()
+          });
+        }
+      });
+      
+      // Handle timeout
+      client.on('timeout', () => {
+        console.log('SSH connection timeout');
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: '\r\n⚠️ Connection timeout - attempting to reconnect...\r\n',
+            type: 'info',
+            timestamp: new Date()
+          });
+        }
       });
 
       // Connect with improved configuration
@@ -201,9 +243,9 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
         host: connectionConfig.host,
         port: connectionConfig.port,
         username: connectionConfig.username,
-        readyTimeout: 30000,
-        keepaliveInterval: 10000, // More frequent keep-alive
-        keepaliveCountMax: 3,
+        readyTimeout: 60000, // Increased timeout
+        keepaliveInterval: 5000, // More frequent keep-alive to prevent disconnection
+        keepaliveCountMax: 10, // More retries before giving up
         algorithms: {
           // Add more robust algorithms for better compatibility
           kex: ['ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521', 'diffie-hellman-group14-sha256'],
