@@ -11,6 +11,7 @@ import { Label } from './ui/label'
 import { Textarea } from './ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
+import KeyManager from './KeyManager'
 import toast from 'react-hot-toast'
 
 interface ConnectionFormData {
@@ -33,6 +34,7 @@ interface ConnectionModalProps {
 const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, editConnection }) => {
   const { addConnection, updateConnection } = useTerminalStore()
   const [showPassword, setShowPassword] = useState(false)
+  const [showKeyManager, setShowKeyManager] = useState(false)
   const [formData, setFormData] = useState<ConnectionFormData>({
     name: editConnection?.name || '',
     host: editConnection?.host || '',
@@ -155,6 +157,15 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, edit
     setFormData(prev => ({ ...prev, [field]: value }))
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
+    }
+  }
+
+  const handleKeySelect = (key: any) => {
+    if (key.privateKey) {
+      setFormData(prev => ({ ...prev, privateKey: key.privateKey }))
+      toast.success(`تم اختيار المفتاح: ${key.name}`)
+    } else {
+      toast.error('هذا المفتاح لا يحتوي على مفتاح خاص')
     }
   }
 
@@ -340,7 +351,18 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, edit
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <Label htmlFor="privateKey">Private Key</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="privateKey">Private Key</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowKeyManager(true)}
+                          >
+                            <Key className="w-4 h-4 mr-1" />
+                            Key Manager
+                          </Button>
+                        </div>
                         <Textarea
                           id="privateKey"
                           value={formData.privateKey}
@@ -391,6 +413,13 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, edit
             </motion.div>
           </motion.div>
         )}
+
+        {/* Key Manager */}
+        <KeyManager
+          isOpen={showKeyManager}
+          onClose={() => setShowKeyManager(false)}
+          onSelectKey={handleKeySelect}
+        />
     </AnimatePresence>
   )
 }

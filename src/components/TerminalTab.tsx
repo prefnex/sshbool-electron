@@ -15,7 +15,8 @@ import {
   Wifi,
   WifiOff,
   Upload,
-  Download
+  Download,
+  FolderOpen
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { sshService, SSHOutput } from '../services/ssh-service'
@@ -27,6 +28,7 @@ import { Card, CardContent, CardHeader } from './ui/card'
 import { Input } from './ui/input'
 import { Separator } from './ui/separator'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
+import SftpManager from './SftpManager'
 import toast from 'react-hot-toast'
 
 interface TerminalTabProps {
@@ -50,6 +52,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [currentCommand, setCurrentCommand] = useState('')
+  const [showSftpManager, setShowSftpManager] = useState(false)
   
   const { terminals, connections, terminalTheme, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
   
@@ -153,86 +156,13 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       }
     })
 
-    // Handle input
-    let inputBuffer = ''
+    // Handle input - simplified for better SSH compatibility
     xterm.onData((data) => {
       if (!isConnected) return
 
-      // Handle special keys
-      const code = data.charCodeAt(0)
-      
-      if (code === 13) { // Enter
-        xterm.write('\r\n')
-        if (inputBuffer.trim()) {
-          // Add to history
-          setCommandHistory(prev => [...prev, inputBuffer.trim()])
-          setHistoryIndex(-1)
-          setCurrentCommand('')
-          
-          // Send command with newline
-          sshService.sendInput(connection.id, inputBuffer + '\n')
-        } else {
-          // Send empty line
-          sshService.sendInput(connection.id, '\n')
-        }
-        inputBuffer = ''
-      } else if (code === 127) { // Backspace
-        if (inputBuffer.length > 0) {
-          inputBuffer = inputBuffer.slice(0, -1)
-          xterm.write('\b \b')
-        }
-      } else if (code === 9) { // Tab
-        // Send tab for autocomplete
-        sshService.sendInput(connection.id, data)
-      } else if (code === 27) { // Escape sequences (arrow keys, etc.)
-        // Handle arrow keys for history
-        if (data === '\x1b[A') { // Up arrow
-          if (commandHistory.length > 0 && historyIndex < commandHistory.length - 1) {
-            if (historyIndex === -1) {
-              setCurrentCommand(inputBuffer)
-            }
-            const newIndex = historyIndex + 1
-            setHistoryIndex(newIndex)
-            const cmd = commandHistory[commandHistory.length - 1 - newIndex]
-            
-            // Clear current line and write command
-            xterm.write('\x1b[2K\r')
-            xterm.write(cmd)
-            inputBuffer = cmd
-          }
-        } else if (data === '\x1b[B') { // Down arrow
-          if (historyIndex > -1) {
-            const newIndex = historyIndex - 1
-            setHistoryIndex(newIndex)
-            const cmd = newIndex === -1 ? currentCommand : commandHistory[commandHistory.length - 1 - newIndex]
-            
-            // Clear current line and write command
-            xterm.write('\x1b[2K\r')
-            xterm.write(cmd)
-            inputBuffer = cmd
-          }
-        } else {
-          // Pass other escape sequences to SSH
-          sshService.sendInput(connection.id, data)
-        }
-      } else if (code === 3) { // Ctrl+C
-        xterm.write('^C\r\n')
-        sshService.sendInput(connection.id, '\x03')
-        inputBuffer = ''
-      } else if (code === 4) { // Ctrl+D
-        sshService.sendInput(connection.id, '\x04')
-      } else if (code === 12) { // Ctrl+L (clear screen)
-        xterm.clear()
-        inputBuffer = ''
-      } else if (code >= 32 && code <= 126) { // Printable ASCII characters
-        inputBuffer += data
-        xterm.write(data)
-      } else if (code === 8) { // Another backspace variant
-        if (inputBuffer.length > 0) {
-          inputBuffer = inputBuffer.slice(0, -1)
-          xterm.write('\b \b')
-        }
-      }
+      // For interactive SSH, just pass all input directly to the server
+      // The server will handle echo, command processing, etc.
+      sshService.sendInput(connection.id, data)
       
       updateTerminalActivity(terminalId)
     })
@@ -515,6 +445,11 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
                 Clear Terminal
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowSftpManager(true)}>
+                <FolderOpen className="w-4 h-4 mr-2" />
+                SFTP File Manager
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleUploadFile}>
                 <Upload className="w-4 h-4 mr-2" />
                 Upload File
@@ -571,6 +506,15 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
           )}
         />
       </div>
+
+      {/* SFTP Manager */}
+      {connection && (
+        <SftpManager
+          connectionId={connection.id}
+          isOpen={showSftpManager}
+          onClose={() => setShowSftpManager(false)}
+        />
+      )}
     </motion.div>
   )
 }

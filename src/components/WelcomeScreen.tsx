@@ -12,18 +12,21 @@ import {
   Command,
   Globe,
   Database,
-  Lock
+  Lock,
+  Rocket
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { cn } from '../lib/utils'
+import ComingSoonPanel from './ComingSoonPanel'
 
 interface WelcomeScreenProps {
   onNewTerminal: () => void
 }
 
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNewTerminal }) => {
+  const [showComingSoon, setShowComingSoon] = React.useState(false)
   const features = [
     {
       icon: Shield,
@@ -92,13 +95,23 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNewTerminal }) => {
     },
     {
       icon: Terminal,
-      title: 'Local Terminal',
-      description: 'Start a local session',
+      title: 'Quick Test',
+      description: 'Test ls command after connection',
       action: () => {
-        // TODO: Open local terminal
-        console.log('Open local terminal')
+        // This will run ls command automatically after connection
+        onNewTerminal()
+        // TODO: Auto-run ls command
       },
-      gradient: 'from-accent to-accent/80'
+      gradient: 'from-green-500 to-green-600'
+    },
+    {
+      icon: Rocket,
+      title: 'Coming Soon',
+      description: 'Discover upcoming features',
+      action: () => {
+        setShowComingSoon(true)
+      },
+      gradient: 'from-purple-500 to-pink-600'
     }
   ]
 
@@ -312,6 +325,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onNewTerminal }) => {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Coming Soon Panel */}
+      <ComingSoonPanel
+        isOpen={showComingSoon}
+        onClose={() => setShowComingSoon(false)}
+      />
     </div>
   )
 }
