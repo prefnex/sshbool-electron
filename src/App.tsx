@@ -85,7 +85,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in">
+    <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in dark">
       {/* Custom Title Bar */}
       <div className="h-12 bg-muted/30 border-b border-border flex items-center justify-between px-4 select-none">
         <div className="flex items-center gap-3">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Plus, 
@@ -8,7 +8,11 @@ import {
   Minimize2,
   Split,
   Grid3X3,
-  Settings
+  Settings,
+  Zap,
+  Copy,
+  RotateCcw,
+  Palette
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { cn } from '../lib/utils'
@@ -33,6 +37,16 @@ const TerminalArea: React.FC = () => {
   
   const [layout, setLayout] = useState<'single' | 'split' | 'grid'>('single')
   const [maximizedTerminal, setMaximizedTerminal] = useState<string | null>(null)
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
+
+  // Update clock every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString())
+    }, 1000)
+    
+    return () => clearInterval(timer)
+  }, [])
 
   const handleNewTerminal = () => {
     if (connections.length === 0) {
@@ -115,11 +129,13 @@ const TerminalArea: React.FC = () => {
               layout === 'grid' && index >= 4 && "hidden"
             )}
           >
-            <TerminalTab
-              terminalId={terminal.id}
-              isActive={activeTerminalId === terminal.id}
-              onClose={() => handleCloseTerminal(terminal.id)}
-            />
+            <div data-terminal-id={terminal.id}>
+              <TerminalTab
+                terminalId={terminal.id}
+                isActive={activeTerminalId === terminal.id}
+                onClose={() => handleCloseTerminal(terminal.id)}
+              />
+            </div>
           </motion.div>
         ))}
       </div>
@@ -219,15 +235,61 @@ const TerminalArea: React.FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button
-              onClick={handleNewTerminal}
-              variant="default"
-              size="sm"
-              className="h-7 px-3"
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              New Terminal
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Quick Actions */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Clear all terminals
+                  terminals.forEach(t => {
+                    const termElement = document.querySelector(`[data-terminal-id="${t.id}"] .xterm`)
+                    if (termElement) {
+                      const xterm = (termElement as any)._xterm
+                      if (xterm) xterm.clear()
+                    }
+                  })
+                  toast.success('🧹 All terminals cleared!')
+                }}
+                className="h-7 px-2"
+                title="Clear All Terminals"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href)
+                  toast.success('📋 App URL copied to clipboard!')
+                }}
+                className="h-7 px-2"
+                title="Copy App URL"
+              >
+                <Copy className="w-3 h-3" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toast.success('⚡ Quick tip: Use Ctrl+Shift+T for new terminal!')}
+                className="h-7 px-2"
+                title="Quick Actions"
+              >
+                <Zap className="w-3 h-3" />
+              </Button>
+
+              <Button
+                onClick={handleNewTerminal}
+                variant="default"
+                size="sm"
+                className="h-7 px-3 btn-gradient"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                New Terminal
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -284,19 +346,29 @@ const TerminalArea: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* Status Bar */}
+      {/* Enhanced Status Bar */}
       {terminals.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-2 bg-muted/20 border-t border-border text-xs text-muted-foreground">
+        <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-muted/20 to-muted/10 border-t border-border text-xs">
           <div className="flex items-center gap-4">
-            <span>Active: {getActiveTerminal()?.title || 'None'}</span>
-            <span>Layout: {layout}</span>
-            {maximizedTerminal && <span>Fullscreen: Active</span>}
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <span>Connections: {connections.length}</span>
-            <span>Terminals: {terminals.length}</span>
-          </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-400 font-medium">
+                {getActiveTerminal()?.title || 'No Active Terminal'}
+              </span>
+            </div>
+            <span className="text-muted-foreground">Layout: {layout}</span>
+            {maximizedTerminal && (
+              <span className="text-yellow-400 font-medium">📺 Fullscreen</span>
+            )}
+                                  </div>
+            
+            <div className="flex items-center gap-4 text-muted-foreground">
+              <span>🔗 {connections.length} Connections</span>
+              <span>🖥️ {terminals.length} Terminals</span>
+              <span className="text-primary font-medium">
+                {currentTime}
+              </span>
+            </div>
         </div>
       )}
     </div>

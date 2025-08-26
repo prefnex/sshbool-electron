@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { sshService, SSHOutput } from '../services/ssh-service'
+import { getThemeById, getDefaultTheme } from '../lib/terminal-themes'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -50,7 +51,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [currentCommand, setCurrentCommand] = useState('')
   
-  const { terminals, connections, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
+  const { terminals, connections, terminalTheme, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
   
   const terminal = terminals.find(t => t.id === terminalId)
   const connection = terminal ? connections.find(c => c.id === terminal.connectionId) : null
@@ -59,41 +60,23 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   useEffect(() => {
     if (!terminalRef.current || !terminal || !connection) return
 
+    // Get current theme
+    const currentTheme = getThemeById(terminalTheme) || getDefaultTheme()
+
     // Initialize xterm.js
     const xterm = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
-      fontSize: 14,
-      fontFamily: 'JetBrains Mono, Fira Code, Consolas, monospace',
-      theme: {
-        background: '#1a1a1a',
-        foreground: '#e4e4e7',
-        cursor: '#7c3aed',
-        cursorAccent: '#1a1a1a',
-        selection: 'rgba(124, 58, 237, 0.3)',
-        black: '#000000',
-        red: '#ef4444',
-        green: '#22c55e',
-        yellow: '#eab308',
-        blue: '#3b82f6',
-        magenta: '#a855f7',
-        cyan: '#06b6d4',
-        white: '#ffffff',
-        brightBlack: '#525252',
-        brightRed: '#f87171',
-        brightGreen: '#4ade80',
-        brightYellow: '#facc15',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#c084fc',
-        brightCyan: '#22d3ee',
-        brightWhite: '#f8fafc'
-      },
-      allowTransparency: true,
+      fontSize: 15,
+      fontFamily: 'JetBrains Mono, Fira Code, Consolas, "Courier New", monospace',
+      fontWeight: 500,
+      theme: currentTheme.colors,
+      allowTransparency: false,
       convertEol: true,
-      scrollback: 1000,
+      scrollback: 5000,
       tabStopWidth: 4,
-      rows: 24,
-      cols: 80
+      rows: 30,
+      cols: 100
     })
 
     // Add addons
@@ -119,6 +102,57 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     xterm.writeln(`📡 Connecting to \x1b[1;32m${connection.username}@${connection.host}:${connection.port}\x1b[0m`)
     xterm.writeln('')
 
+    // Auto-copy on selection
+    xterm.onSelectionChange(() => {
+      const selection = xterm.getSelection()
+      if (selection && selection.length > 0) {
+        try {
+          navigator.clipboard.writeText(selection).then(() => {
+            console.log('Text copied to clipboard:', selection)
+            // Show a subtle toast notification
+            toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
+              duration: 2000,
+              style: {
+                background: '#0a0a0a',
+                color: '#00ff88',
+                border: '1px solid #00ff88',
+                fontSize: '12px'
+              }
+            })
+          }).catch(() => {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea')
+            textArea.value = selection
+            document.body.appendChild(textArea)
+            textArea.select()
+            document.execCommand('copy')
+            document.body.removeChild(textArea)
+            console.log('Text copied to clipboard (fallback):', selection)
+            toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
+              duration: 2000,
+              style: {
+                background: '#0a0a0a',
+                color: '#00ff88',
+                border: '1px solid #00ff88',
+                fontSize: '12px'
+              }
+            })
+          })
+        } catch (error) {
+          console.error('Failed to copy text to clipboard:', error)
+          toast.error('فشل في نسخ النص', {
+            duration: 2000,
+            style: {
+              background: '#0a0a0a',
+              color: '#ff6b6b',
+              border: '1px solid #ff6b6b',
+              fontSize: '12px'
+            }
+          })
+        }
+      }
+    })
+
     // Handle input
     let inputBuffer = ''
     xterm.onData((data) => {
@@ -128,23 +162,28 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       const code = data.charCodeAt(0)
       
       if (code === 13) { // Enter
+        xterm.write('\r\n')
         if (inputBuffer.trim()) {
           // Add to history
-          setCommandHistory(prev => [...prev, inputBuffer])
+          setCommandHistory(prev => [...prev, inputBuffer.trim()])
           setHistoryIndex(-1)
           setCurrentCommand('')
           
-          // Send command
-          sshService.sendInput(connection.id, inputBuffer)
-          inputBuffer = ''
+          // Send command with newline
+          sshService.sendInput(connection.id, inputBuffer + '\n')
         } else {
-          sshService.sendInput(connection.id, '')
+          // Send empty line
+          sshService.sendInput(connection.id, '\n')
         }
+        inputBuffer = ''
       } else if (code === 127) { // Backspace
         if (inputBuffer.length > 0) {
           inputBuffer = inputBuffer.slice(0, -1)
           xterm.write('\b \b')
         }
+      } else if (code === 9) { // Tab
+        // Send tab for autocomplete
+        sshService.sendInput(connection.id, data)
       } else if (code === 27) { // Escape sequences (arrow keys, etc.)
         // Handle arrow keys for history
         if (data === '\x1b[A') { // Up arrow
@@ -177,13 +216,22 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
           sshService.sendInput(connection.id, data)
         }
       } else if (code === 3) { // Ctrl+C
-        sshService.sendInput(connection.id, data)
+        xterm.write('^C\r\n')
+        sshService.sendInput(connection.id, '\x03')
         inputBuffer = ''
       } else if (code === 4) { // Ctrl+D
-        sshService.sendInput(connection.id, data)
-      } else if (code >= 32) { // Printable characters
+        sshService.sendInput(connection.id, '\x04')
+      } else if (code === 12) { // Ctrl+L (clear screen)
+        xterm.clear()
+        inputBuffer = ''
+      } else if (code >= 32 && code <= 126) { // Printable ASCII characters
         inputBuffer += data
         xterm.write(data)
+      } else if (code === 8) { // Another backspace variant
+        if (inputBuffer.length > 0) {
+          inputBuffer = inputBuffer.slice(0, -1)
+          xterm.write('\b \b')
+        }
       }
       
       updateTerminalActivity(terminalId)

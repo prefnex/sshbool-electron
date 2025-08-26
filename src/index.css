@@ -32,27 +32,27 @@
   }
 
   .dark {
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
-    --card: 224 71.4% 4.1%;
-    --card-foreground: 210 20% 98%;
-    --popover: 224 71.4% 4.1%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 263 70% 50%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 215 27.9% 16.9%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
-    --accent: 215 27.9% 16.9%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
-    --ring: 263 70% 50%;
-    --success: 142 76% 36%;
-    --success-foreground: 355.7 100% 97.3%;
+    --background: 220 13% 6%;
+    --foreground: 210 40% 95%;
+    --card: 220 13% 8%;
+    --card-foreground: 210 40% 95%;
+    --popover: 220 13% 8%;
+    --popover-foreground: 210 40% 95%;
+    --primary: 142 76% 50%;
+    --primary-foreground: 220 13% 6%;
+    --secondary: 215 20% 20%;
+    --secondary-foreground: 210 40% 95%;
+    --muted: 215 20% 15%;
+    --muted-foreground: 217.9 15% 75%;
+    --accent: 215 20% 20%;
+    --accent-foreground: 210 40% 95%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 210 40% 95%;
+    --border: 215 20% 25%;
+    --input: 215 20% 20%;
+    --ring: 142 76% 50%;
+    --success: 142 76% 50%;
+    --success-foreground: 220 13% 6%;
   }
 }
 
@@ -76,8 +76,22 @@
 
 /* Prevent white flash on startup */
 #root {
-  background-color: #1a1a1a;
+  background-color: #0f0f0f;
   transition: background-color 0.2s ease;
+}
+
+/* Apply dark theme by default */
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  -webkit-font-feature-settings: "liga", "tnum", "zero", "ss01", "locl";
+  -moz-font-feature-settings: "liga", "tnum", "zero", "ss01", "locl";
+  font-feature-settings: "liga", "tnum", "zero", "ss01", "locl";
 }
 
 /* Custom scrollbar styles */
@@ -102,15 +116,29 @@
 
 /* Terminal specific styles */
 .xterm {
-  padding: 8px;
+  padding: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .xterm .xterm-viewport {
-  background-color: transparent !important;
+  background-color: #0a0a0a !important;
 }
 
 .xterm .xterm-screen {
-  background-color: transparent !important;
+  background-color: #0a0a0a !important;
+}
+
+.xterm .xterm-cursor-layer {
+  z-index: 2;
+}
+
+.xterm .xterm-selection {
+  background-color: rgba(0, 255, 136, 0.4) !important;
+}
+
+.xterm .xterm-rows {
+  font-weight: 500;
 }
 
 /* Loading animation */

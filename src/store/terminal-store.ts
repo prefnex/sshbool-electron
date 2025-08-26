@@ -30,6 +30,7 @@ export interface TerminalState {
   activeTerminalId: string | null
   sidebarCollapsed: boolean
   theme: 'light' | 'dark' | 'system'
+  terminalTheme: string
   fontSize: number
   fontFamily: string
   showLineNumbers: boolean
@@ -49,6 +50,7 @@ export interface TerminalState {
   
   toggleSidebar: () => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
+  setTerminalTheme: (themeId: string) => void
   setFontSize: (size: number) => void
   setFontFamily: (family: string) => void
   toggleLineNumbers: () => void
@@ -65,7 +67,8 @@ export const useTerminalStore = create<TerminalState>()(
       activeTerminalId: null,
       sidebarCollapsed: false,
       theme: 'dark',
-      fontSize: 14,
+      terminalTheme: 'flyterm-pro',
+      fontSize: 15,
       fontFamily: 'JetBrains Mono',
       showLineNumbers: true,
       showStatusBar: true,
@@ -153,6 +156,7 @@ export const useTerminalStore = create<TerminalState>()(
       })),
 
       setTheme: (theme) => set({ theme }),
+      setTerminalTheme: (terminalTheme) => set({ terminalTheme }),
       setFontSize: (fontSize) => set({ fontSize }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       toggleLineNumbers: () => set((state) => ({ showLineNumbers: !state.showLineNumbers })),
@@ -163,6 +167,7 @@ export const useTerminalStore = create<TerminalState>()(
       partialize: (state) => ({
         connections: state.connections,
         theme: state.theme,
+        terminalTheme: state.terminalTheme,
         fontSize: state.fontSize,
         fontFamily: state.fontFamily,
         showLineNumbers: state.showLineNumbers,

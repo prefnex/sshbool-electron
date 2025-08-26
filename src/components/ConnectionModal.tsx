@@ -27,20 +27,21 @@ interface ConnectionFormData {
 interface ConnectionModalProps {
   isOpen: boolean
   onClose: () => void
+  editConnection?: any
 }
 
-const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose }) => {
-  const { addConnection } = useTerminalStore()
+const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, editConnection }) => {
+  const { addConnection, updateConnection } = useTerminalStore()
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState<ConnectionFormData>({
-    name: '',
-    host: '',
-    port: '22',
-    username: '',
-    password: '',
-    privateKey: '',
-    connectionType: 'password',
-    color: '#3B82F6'
+    name: editConnection?.name || '',
+    host: editConnection?.host || '',
+    port: editConnection?.port?.toString() || '22',
+    username: editConnection?.username || '',
+    password: editConnection?.password || '',
+    privateKey: editConnection?.privateKey || '',
+    connectionType: editConnection?.connectionType || 'password',
+    color: editConnection?.color || '#3B82F6'
   })
 
   const [errors, setErrors] = useState<Partial<ConnectionFormData>>({})
@@ -93,7 +94,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose }) =>
     }
 
     try {
-      const newConnection = {
+      const connectionData = {
         name: formData.name.trim(),
         host: formData.host.trim(),
         port: parseInt(formData.port),
@@ -104,36 +105,48 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose }) =>
         color: formData.color
       }
 
-      // Add to store
-      addConnection(newConnection)
+      if (editConnection) {
+        // Update existing connection
+        const updatedConnection = {
+          ...editConnection,
+          ...connectionData
+        }
+        
+        updateConnection(updatedConnection)
+        await connectionStorage.updateConnection(updatedConnection)
+        toast.success('🔄 Connection updated successfully!')
+      } else {
+        // Add new connection
+        addConnection(connectionData)
 
-      // Also save to persistent storage
-      const connectionWithId = {
-        ...newConnection,
-        id: `conn-${Date.now()}`,
-        isConnected: false
+        // Also save to persistent storage
+        const connectionWithId = {
+          ...connectionData,
+          id: `conn-${Date.now()}`,
+          isConnected: false
+        }
+        await connectionStorage.addConnection(connectionWithId)
+        toast.success('✅ Connection added successfully!')
       }
-      await connectionStorage.addConnection(connectionWithId)
 
-      toast.success('Connection added successfully!')
       onClose()
     } catch (error) {
-      toast.error('Failed to add connection')
-      console.error('Error adding connection:', error)
+      toast.error(`Failed to ${editConnection ? 'update' : 'add'} connection`)
+      console.error(`Error ${editConnection ? 'updating' : 'adding'} connection:`, error)
     }
   }
 
   const handleClose = () => {
     onClose()
     setFormData({
-      name: '',
-      host: '',
-      port: '22',
-      username: '',
-      password: '',
-      privateKey: '',
-      connectionType: 'password',
-      color: '#3B82F6'
+      name: editConnection?.name || '',
+      host: editConnection?.host || '',
+      port: editConnection?.port?.toString() || '22',
+      username: editConnection?.username || '',
+      password: editConnection?.password || '',
+      privateKey: editConnection?.privateKey || '',
+      connectionType: editConnection?.connectionType || 'password',
+      color: editConnection?.color || '#3B82F6'
     })
     setErrors({})
   }
@@ -170,8 +183,12 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose }) =>
                       <Server className="w-5 h-5 text-primary-foreground" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">New Connection</CardTitle>
-                      <CardDescription>Add a new SSH connection</CardDescription>
+                      <CardTitle className="text-xl">
+                        {editConnection ? 'Edit Connection' : 'New Connection'}
+                      </CardTitle>
+                      <CardDescription>
+                        {editConnection ? 'Update your SSH connection details' : 'Add a new SSH connection'}
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -366,7 +383,7 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose }) =>
                       type="submit"
                       className="w-full mt-6 btn-gradient"
                     >
-                      Add Connection
+                      {editConnection ? 'Update Connection' : 'Add Connection'}
                     </Button>
                   </form>
                 </CardContent>
