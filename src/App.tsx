@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
-import { Terminal, Settings, X, Minimize2, Maximize2 } from 'lucide-react'
+import { Terminal, Settings, X, Minimize2, Maximize2, Square } from 'lucide-react'
 import { useTerminalStore } from './store/terminal-store'
 import { Button } from './components/ui/button'
 import { Badge } from './components/ui/badge'
@@ -18,6 +18,8 @@ declare global {
       maximize?: () => void
       unmaximize?: () => void
       close?: () => void
+      isMaximized?: () => Promise<boolean>
+      onMaximizeChange?: (callback: (isMaximized: boolean) => void) => void
     }
   }
 }
@@ -26,6 +28,26 @@ const App: React.FC = () => {
   const { connections, terminals } = useTerminalStore()
   const [showSettings, setShowSettings] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    // Check initial maximize state
+    if (window.electron?.isMaximized) {
+      window.electron.isMaximized().then(setIsMaximized)
+    }
+
+    // Listen for maximize state changes
+    if (window.electron?.onMaximizeChange) {
+      window.electron.onMaximizeChange(setIsMaximized)
+    }
+
+    // Hide loading screen after a short delay to ensure everything is ready
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleMinimize = () => {
     if (window.electron) {
@@ -35,12 +57,7 @@ const App: React.FC = () => {
 
   const handleMaximize = () => {
     if (window.electron) {
-      if (isMaximized) {
-        window.electron.unmaximize()
-      } else {
-        window.electron.maximize()
-      }
-      setIsMaximized(!isMaximized)
+      window.electron.maximize()
     }
   }
 
@@ -50,8 +67,25 @@ const App: React.FC = () => {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="startup-loading">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary to-purple-600 rounded-xl flex items-center justify-center animate-pulse">
+            <Terminal className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground">FlyTerm</h1>
+            <p className="text-muted-foreground">Starting up...</p>
+          </div>
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-screen w-screen bg-background text-foreground overflow-hidden">
+    <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in">
       {/* Custom Title Bar */}
       <div className="h-12 bg-muted/30 border-b border-border flex items-center justify-between px-4 select-none">
         <div className="flex items-center gap-3">
@@ -110,7 +144,7 @@ const App: React.FC = () => {
               onClick={handleMaximize}
               className="h-8 w-8 p-0 hover:bg-accent"
             >
-              <Maximize2 className="w-4 h-4" />
+              {isMaximized ? <Square className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
 
             <Button

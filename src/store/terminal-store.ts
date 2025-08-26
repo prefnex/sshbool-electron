@@ -70,13 +70,16 @@ export const useTerminalStore = create<TerminalState>()(
       showLineNumbers: true,
       showStatusBar: true,
 
-      addConnection: (connection) => set((state) => ({
-        connections: [...state.connections, {
+      addConnection: (connection) => set((state) => {
+        const newConnection = {
           ...connection,
-          id: `conn-${Date.now()}`,
+          id: `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           isConnected: false
-        }]
-      })),
+        }
+        return {
+          connections: [...state.connections, newConnection]
+        }
+      }),
 
       updateConnection: (id, updates) => set((state) => ({
         connections: state.connections.map(conn =>
@@ -98,7 +101,7 @@ export const useTerminalStore = create<TerminalState>()(
       addTerminal: (terminal) => set((state) => {
         const newTerminal: Terminal = {
           ...terminal,
-          id: `term-${Date.now()}`,
+          id: `term-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           isActive: false,
           hasUnreadOutput: false,
           lastActivity: new Date()

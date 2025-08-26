@@ -205,6 +205,76 @@ class ConnectionStorageService {
       throw new Error('Failed to clear connections')
     }
   }
+
+  async removeDuplicates(): Promise<number> {
+    try {
+      const connections = await this.loadConnections()
+      const seen = new Set<string>()
+      const uniqueConnections: Connection[] = []
+      let duplicatesRemoved = 0
+
+      for (const conn of connections) {
+        const key = `${conn.host}:${conn.port}:${conn.username}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          uniqueConnections.push(conn)
+        } else {
+          duplicatesRemoved++
+        }
+      }
+
+      if (duplicatesRemoved > 0) {
+        await this.saveConnections(uniqueConnections)
+        console.log(`Removed ${duplicatesRemoved} duplicate connections`)
+      }
+
+      return duplicatesRemoved
+    } catch (error) {
+      console.error('Failed to remove duplicates:', error)
+      throw new Error('Failed to remove duplicates')
+    }
+  }
+
+  async removeDemoConnections(): Promise<number> {
+    try {
+      const connections = await this.loadConnections()
+      const nonDemoConnections = connections.filter(conn => {
+        const isDemoHost = conn.host.includes('demo') || 
+                          conn.host.includes('example') ||
+                          conn.host.includes('test') ||
+                          conn.host.includes('localhost') ||
+                          conn.host === '127.0.0.1' ||
+                          conn.name.toLowerCase().includes('demo') ||
+                          conn.name.toLowerCase().includes('test') ||
+                          conn.name.toLowerCase().includes('example')
+        return !isDemoHost
+      })
+
+      const removedCount = connections.length - nonDemoConnections.length
+      
+      if (removedCount > 0) {
+        await this.saveConnections(nonDemoConnections)
+        console.log(`Removed ${removedCount} demo connections`)
+      }
+
+      return removedCount
+    } catch (error) {
+      console.error('Failed to remove demo connections:', error)
+      throw new Error('Failed to remove demo connections')
+    }
+  }
+
+  async cleanupConnections(): Promise<{ duplicatesRemoved: number, demoRemoved: number }> {
+    try {
+      const duplicatesRemoved = await this.removeDuplicates()
+      const demoRemoved = await this.removeDemoConnections()
+      
+      return { duplicatesRemoved, demoRemoved }
+    } catch (error) {
+      console.error('Failed to cleanup connections:', error)
+      throw new Error('Failed to cleanup connections')
+    }
+  }
   
   async getConnectionStats(): Promise<{
     total: number

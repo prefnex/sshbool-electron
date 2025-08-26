@@ -1,15 +1,16 @@
 import { Connection } from '../store/terminal-store'
+import { Client } from 'ssh2'
 
 export interface SSHOutput {
   data: string
-  type: 'stdout' | 'stderr' | 'info'
+  type: 'stdout' | 'stderr' | 'info' | 'error'
   timestamp: Date
 }
 
 export interface SSHConnection {
   id: string
   connection: Connection
-  client: any
+  client: Client
   shell: any
   isConnected: boolean
   lastActivity: Date
@@ -24,62 +25,128 @@ class SSHService {
       // Store output callback
       this.outputCallbacks.set(connection.id, onOutput)
 
-      // Simulate SSH connection (in real implementation, this would use ssh2 library)
-      await this.simulateConnection(connection)
+      // Create SSH client
+      const client = new Client()
+      
+      return new Promise((resolve, reject) => {
+        client.on('ready', () => {
+          const sshConnection: SSHConnection = {
+            id: connection.id,
+            connection,
+            client,
+            shell: null,
+            isConnected: true,
+            lastActivity: new Date()
+          }
 
-      const sshConnection: SSHConnection = {
-        id: connection.id,
-        connection,
-        client: {}, // Mock client
-        shell: {}, // Mock shell
-        isConnected: true,
-        lastActivity: new Date()
-      }
+          this.connections.set(connection.id, sshConnection)
 
-      this.connections.set(connection.id, sshConnection)
+          // Send welcome message
+          onOutput({
+            data: `✅ Connected to ${connection.host} as ${connection.username}\r\n`,
+            type: 'info',
+            timestamp: new Date()
+          })
 
-      // Send welcome message
-      onOutput({
-        data: `Connected to ${connection.host} as ${connection.username}`,
-        type: 'info',
-        timestamp: new Date()
+          resolve(true)
+        })
+
+        client.on('error', (err) => {
+          onOutput({
+            data: `❌ Connection failed: ${err.message}\r\n`,
+            type: 'error',
+            timestamp: new Date()
+          })
+          reject(err)
+        })
+
+        client.on('close', () => {
+          this.connections.delete(connection.id)
+          onOutput({
+            data: `🔌 Connection to ${connection.host} closed\r\n`,
+            type: 'info',
+            timestamp: new Date()
+          })
+        })
+
+        // Connect with proper configuration
+        const connectConfig: any = {
+          host: connection.host,
+          port: connection.port,
+          username: connection.username,
+          readyTimeout: 30000,
+          keepaliveInterval: 30000,
+        }
+
+        if (connection.connectionType === 'password' && connection.password) {
+          connectConfig.password = connection.password
+        } else if (connection.connectionType === 'privateKey' && connection.privateKey) {
+          connectConfig.privateKey = connection.privateKey
+        } else {
+          reject(new Error('No authentication method provided'))
+          return
+        }
+
+        client.connect(connectConfig)
       })
-
-      return true
     } catch (error) {
       console.error('SSH connection failed:', error)
       return false
     }
   }
 
-  private async simulateConnection(connection: Connection): Promise<void> {
-    // Simulate connection delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
-    
-    // Simulate connection success/failure
-    if (Math.random() < 0.1) { // 10% failure rate for demo
-      throw new Error('Connection refused by server')
-    }
-  }
-
   async startShell(connectionId: string): Promise<boolean> {
     const connection = this.connections.get(connectionId)
-    if (!connection) return false
+    if (!connection || !connection.isConnected) return false
 
     try {
-      // Simulate shell startup
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      const onOutput = this.outputCallbacks.get(connectionId)
-      if (onOutput) {
-        onOutput({
-          data: 'Interactive shell started. Type your commands below.',
-          type: 'info',
-          timestamp: new Date()
-        })
-      }
+      return new Promise((resolve, reject) => {
+        connection.client.shell((err, shell) => {
+          if (err) {
+            reject(err)
+            return
+          }
 
-      return true
+          connection.shell = shell
+          this.connections.set(connectionId, connection)
+
+          const onOutput = this.outputCallbacks.get(connectionId)
+          if (onOutput) {
+            onOutput({
+              data: '🚀 Interactive shell started. Ready for commands...\r\n',
+              type: 'info',
+              timestamp: new Date()
+            })
+
+            // Handle shell output
+            shell.on('data', (data: Buffer) => {
+              onOutput({
+                data: data.toString(),
+                type: 'stdout',
+                timestamp: new Date()
+              })
+            })
+
+            shell.stderr.on('data', (data: Buffer) => {
+              onOutput({
+                data: data.toString(),
+                type: 'stderr',
+                timestamp: new Date()
+              })
+            })
+
+            shell.on('close', () => {
+              onOutput({
+                data: '\r\n💀 Shell session ended\r\n',
+                type: 'info',
+                timestamp: new Date()
+              })
+            })
+          }
+
+          resolve(true)
+        })
+      })
     } catch (error) {
       console.error('Failed to start shell:', error)
       return false
@@ -88,107 +155,26 @@ class SSHService {
 
   async sendInput(connectionId: string, input: string): Promise<void> {
     const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return
+    if (!connection || !connection.isConnected || !connection.shell) return
 
     try {
-      // Simulate command execution
-      const output = await this.simulateCommandExecution(input)
+      // Add newline if not present
+      const command = input.endsWith('\n') || input.endsWith('\r\n') ? input : input + '\r\n'
+      connection.shell.write(command)
       
+      // Update last activity
+      connection.lastActivity = new Date()
+      this.connections.set(connectionId, connection)
+    } catch (error) {
+      console.error('Failed to send input:', error)
       const onOutput = this.outputCallbacks.get(connectionId)
       if (onOutput) {
         onOutput({
-          data: output,
-          type: 'stdout',
+          data: `❌ Failed to send command: ${error.message}\r\n`,
+          type: 'error',
           timestamp: new Date()
         })
       }
-
-      connection.lastActivity = new Date()
-    } catch (error) {
-      console.error('Failed to send input:', error)
-    }
-  }
-
-  private async simulateCommandExecution(command: string): Promise<string> {
-    // Simulate command execution with realistic output
-    const cmd = command.trim().toLowerCase()
-    
-    if (cmd === 'ls' || cmd === 'ls -la') {
-      return `total 32
-drwxr-xr-x  5 user  staff   160 Dec 20 10:30 .
-drwxr-xr-x  3 user  staff    96 Dec 20 10:30 ..
--rw-r--r--  1 user  staff   123 Dec 20 10:30 README.md
--rw-r--r--  1 user  staff  2048 Dec 20 10:30 config.json
-drwxr-xr-x  2 user  staff    64 Dec 20 10:30 logs
-drwxr-xr-x  2 user  staff    64 Dec 20 10:30 data
--rw-r--r--  1 user  staff   456 Dec 20 10:30 package.json`
-    } else if (cmd === 'pwd') {
-      return '/home/user/project'
-    } else if (cmd === 'whoami') {
-      return 'user'
-    } else if (cmd === 'date') {
-      return new Date().toLocaleString()
-    } else if (cmd === 'ps aux') {
-      return `  PID TTY           TIME CMD
-  1234 ttys000    0:00.01 /bin/bash
-  1235 ttys000    0:00.00 ps aux`
-    } else if (cmd === 'df -h') {
-      return `Filesystem      Size   Used  Avail Capacity  Mounted on
-/dev/disk1s1   500Gi  200Gi  300Gi      40%    /
-/dev/disk1s2   500Gi  100Gi  400Gi      20%    /Users`
-    } else if (cmd === 'top') {
-      return `Processes: 123 total, 2 running, 121 sleeping
-CPU usage: 15.2% user, 8.1% sys, 76.7% idle
-Load Avg: 1.23, 1.45, 1.67
-MemRegions: 12345 total, 0 resident, 0 private, 0 shared
-PhysMem: 16G used (5G wired), 0 unused
-VM: 256G vsize, 0 framework, 0(0) swapins, 0(0) swapouts`
-    } else if (cmd === 'netstat -an') {
-      return `Active Internet connections (including servers)
-Proto Recv-Q Send-Q Local Address           Foreign Address         State
-tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
-tcp        0      0 127.0.0.1:631           0.0.0.0:*               LISTEN
-tcp        0      0 0.0.0.0:8080            0.0.0.0:*               LISTEN`
-    } else if (cmd === 'docker ps') {
-      return `CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS         PORTS     NAMES
-abc123def456   nginx     "nginx"    2 hours ago   Up 2 hours     0.0.0.0:80->80/tcp   web-server
-def456ghi789   redis     "redis"    1 hour ago    Up 1 hour      6379/tcp            cache`
-    } else if (cmd === 'git status') {
-      return `On branch main
-Your branch is up to date with 'origin/main'.
-
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-        modified:   src/components/TerminalTab.tsx
-
-no changes added to commit (use "git add" and/or "git commit -a")`
-    } else if (cmd === 'npm list') {
-      return `project@1.0.0 /home/user/project
-├── @radix-ui/react-dialog@1.1.2
-├── @radix-ui/react-label@2.1.2
-├── @radix-ui/react-slot@1.1.2
-├── class-variance-authority@0.7.1
-├── clsx@2.1.1
-├── framer-motion@11.10.16
-├── lucide-react@0.541.0
-├── react@18.2.0
-├── react-dom@18.2.0
-├── tailwind-merge@3.3.1
-└── zustand@5.0.8`
-    } else if (cmd === 'help' || cmd === '--help') {
-      return `Available commands:
-  ls, pwd, whoami, date, ps, df, top, netstat
-  docker, git, npm, help
-  
-For more information on a command, type 'man <command>'`
-    } else if (cmd === 'clear' || cmd === 'cls') {
-      return '' // Clear command returns empty output
-    } else if (cmd === '') {
-      return '' // Empty command returns nothing
-    } else {
-      // Simulate command not found
-      return `bash: ${command.trim()}: command not found`
     }
   }
 
@@ -197,53 +183,60 @@ For more information on a command, type 'man <command>'`
     if (!connection) return
 
     try {
-      // Cleanup connection
-      connection.isConnected = false
+      if (connection.shell) {
+        connection.shell.end()
+      }
+      connection.client.end()
       this.connections.delete(connectionId)
       this.outputCallbacks.delete(connectionId)
-
-      console.log(`Disconnected from ${connection.connection.host}`)
     } catch (error) {
-      console.error('Error during disconnect:', error)
+      console.error('Failed to disconnect:', error)
     }
   }
 
-  async listConnections(): Promise<SSHConnection[]> {
+  getConnection(connectionId: string): SSHConnection | undefined {
+    return this.connections.get(connectionId)
+  }
+
+  getAllConnections(): SSHConnection[] {
     return Array.from(this.connections.values())
   }
 
-  async getConnectionStatus(connectionId: string): Promise<boolean> {
+  isConnected(connectionId: string): boolean {
     const connection = this.connections.get(connectionId)
-    return connection?.isConnected || false
+    return connection ? connection.isConnected : false
   }
 
-  async executeCommand(connectionId: string, command: string): Promise<string> {
+  // File transfer methods for SFTP
+  async startSFTP(connectionId: string): Promise<any> {
     const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) {
-      throw new Error('Connection not available')
-    }
+    if (!connection || !connection.isConnected) return null
 
-    return await this.simulateCommandExecution(command)
+    return new Promise((resolve, reject) => {
+      connection.client.sftp((err, sftp) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        resolve(sftp)
+      })
+    })
   }
 
   async uploadFile(connectionId: string, localPath: string, remotePath: string): Promise<boolean> {
-    const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return false
-
     try {
-      // Simulate file upload
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const onOutput = this.outputCallbacks.get(connectionId)
-      if (onOutput) {
-        onOutput({
-          data: `File uploaded: ${localPath} -> ${remotePath}`,
-          type: 'info',
-          timestamp: new Date()
-        })
-      }
+      const sftp = await this.startSFTP(connectionId)
+      if (!sftp) return false
 
-      return true
+      return new Promise((resolve, reject) => {
+        sftp.fastPut(localPath, remotePath, (err: any) => {
+          if (err) {
+            reject(err)
+            return
+          }
+          resolve(true)
+        })
+      })
     } catch (error) {
       console.error('File upload failed:', error)
       return false
@@ -251,158 +244,43 @@ For more information on a command, type 'man <command>'`
   }
 
   async downloadFile(connectionId: string, remotePath: string, localPath: string): Promise<boolean> {
-    const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return false
-
     try {
-      // Simulate file download
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const onOutput = this.outputCallbacks.get(connectionId)
-      if (onOutput) {
-        onOutput({
-          data: `File downloaded: ${remotePath} -> ${localPath}`,
-          type: 'info',
-          timestamp: new Date()
-        })
-      }
+      const sftp = await this.startSFTP(connectionId)
+      if (!sftp) return false
 
-      return true
+      return new Promise((resolve, reject) => {
+        sftp.fastGet(remotePath, localPath, (err: any) => {
+          if (err) {
+            reject(err)
+            return
+          }
+          resolve(true)
+        })
+      })
     } catch (error) {
       console.error('File download failed:', error)
       return false
     }
   }
 
-  async getFileList(connectionId: string, path = '.'): Promise<string[]> {
-    const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return []
-
+  async listDirectory(connectionId: string, remotePath: string): Promise<any[]> {
     try {
-      // Simulate file listing
-      await new Promise(resolve => setTimeout(resolve, 200))
-      
-      return [
-        'README.md',
-        'config.json',
-        'logs/',
-        'data/',
-        'package.json',
-        'src/',
-        'node_modules/',
-        '.git/',
-        '.env'
-      ]
+      const sftp = await this.startSFTP(connectionId)
+      if (!sftp) return []
+
+      return new Promise((resolve, reject) => {
+        sftp.readdir(remotePath, (err: any, list: any[]) => {
+          if (err) {
+            reject(err)
+            return
+          }
+          resolve(list || [])
+        })
+      })
     } catch (error) {
-      console.error('Failed to get file list:', error)
+      console.error('Directory listing failed:', error)
       return []
     }
-  }
-
-  async createDirectory(connectionId: string, path: string): Promise<boolean> {
-    const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return false
-
-    try {
-      // Simulate directory creation
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      const onOutput = this.outputCallbacks.get(connectionId)
-      if (onOutput) {
-        onOutput({
-          data: `Directory created: ${path}`,
-          type: 'info',
-          timestamp: new Date()
-        })
-      }
-
-      return true
-    } catch (error) {
-      console.error('Failed to create directory:', error)
-      return false
-    }
-  }
-
-  async deleteFile(connectionId: string, path: string): Promise<boolean> {
-    const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return false
-
-    try {
-      // Simulate file deletion
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      const onOutput = this.outputCallbacks.get(connectionId)
-      if (onOutput) {
-        onOutput({
-          data: `File deleted: ${path}`,
-          type: 'info',
-          timestamp: new Date()
-        })
-      }
-
-      return true
-    } catch (error) {
-      console.error('Failed to delete file:', error)
-      return false
-    }
-  }
-
-  async getSystemInfo(connectionId: string): Promise<any> {
-    const connection = this.connections.get(connectionId)
-    if (!connection || !connection.isConnected) return null
-
-    try {
-      // Simulate system info
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      return {
-        hostname: connection.connection.host,
-        os: 'Linux Ubuntu 22.04.3 LTS',
-        kernel: '5.15.0-88-generic',
-        architecture: 'x86_64',
-        cpu: 'Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz',
-        memory: '32GB',
-        uptime: '15 days, 8 hours, 23 minutes',
-        loadAverage: [1.23, 1.45, 1.67],
-        diskUsage: '45%',
-        networkInterfaces: ['eth0', 'lo', 'docker0']
-      }
-    } catch (error) {
-      console.error('Failed to get system info:', error)
-      return null
-    }
-  }
-
-  async pingHost(host: string): Promise<number> {
-    try {
-      // Simulate ping
-      const latency = Math.random() * 50 + 10 // 10-60ms
-      await new Promise(resolve => setTimeout(resolve, latency))
-      return Math.round(latency)
-    } catch (error) {
-      console.error('Ping failed:', error)
-      return -1
-    }
-  }
-
-  async checkPort(host: string, port: number): Promise<boolean> {
-    try {
-      // Simulate port check
-      await new Promise(resolve => setTimeout(resolve, 200))
-      
-      // Simulate some ports as open/closed
-      const openPorts = [22, 80, 443, 8080, 3306, 5432]
-      return openPorts.includes(port)
-    } catch (error) {
-      console.error('Port check failed:', error)
-      return false
-    }
-  }
-
-  // Cleanup method
-  cleanup(): void {
-    this.connections.clear()
-    this.outputCallbacks.clear()
   }
 }
 
