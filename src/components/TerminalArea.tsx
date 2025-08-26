@@ -50,16 +50,38 @@ const TerminalArea: React.FC = () => {
 
   const handleNewTerminal = () => {
     if (connections.length === 0) {
-      toast.error('Please create a connection first')
+      toast.error('يرجى إنشاء اتصال أولاً قبل فتح تيرمينال جديد', {
+        duration: 3000,
+        style: {
+          background: 'hsl(var(--destructive))',
+          color: 'hsl(var(--destructive-foreground))',
+          border: '1px solid hsl(var(--border))',
+          borderRadius: '8px',
+        }
+      })
       return
     }
     
     // Use the first available connection
     const connection = connections[0]
-    addTerminal({
-      connectionId: connection.id,
-      title: `${connection.name} - ${connection.host}`,
-    })
+    try {
+      addTerminal({
+        connectionId: connection.id,
+        title: `${connection.name} - ${connection.host}`,
+      })
+      
+      toast.success(`تم إنشاء تيرمينال جديد للاتصال: ${connection.name}`, {
+        duration: 2000,
+        style: {
+          background: 'hsl(var(--card))',
+          color: 'hsl(var(--card-foreground))',
+          border: '1px solid hsl(var(--success))',
+        }
+      })
+    } catch (error) {
+      console.error('Failed to create new terminal:', error)
+      toast.error('فشل في إنشاء تيرمينال جديد')
+    }
   }
 
   const handleCloseTerminal = (terminalId: string) => {
@@ -231,9 +253,13 @@ const TerminalArea: React.FC = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleNewTerminal}>
+                <DropdownMenuItem 
+                  onClick={handleNewTerminal}
+                  disabled={connections.length === 0}
+                  className={connections.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+                >
                   <Plus className="w-3 h-3 mr-2" />
-                  New Terminal
+                  تيرمينال جديد
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setLayout('single')}>
@@ -303,10 +329,12 @@ const TerminalArea: React.FC = () => {
                 onClick={handleNewTerminal}
                 variant="default"
                 size="sm"
-                className="h-7 px-3 btn-gradient"
+                className="h-7 px-3 btn-gradient hover:scale-105 transition-transform"
+                disabled={connections.length === 0}
+                title={connections.length === 0 ? 'يرجى إنشاء اتصال أولاً' : 'إنشاء تيرمينال جديد'}
               >
                 <Plus className="w-3 h-3 mr-1" />
-                New Terminal
+                تيرمينال جديد
               </Button>
             </div>
           </div>
@@ -359,10 +387,12 @@ const TerminalArea: React.FC = () => {
       )}
 
       {/* Terminal Content */}
-      <div className="flex-1 overflow-hidden">
-        <AnimatePresence mode="wait">
-          {renderTerminals()}
-        </AnimatePresence>
+      <div className="flex-1 overflow-hidden p-2">
+        <div className="native-terminal h-full">
+          <AnimatePresence mode="wait">
+            {renderTerminals()}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Enhanced Status Bar */}

@@ -27,6 +27,7 @@ import SettingsModal from './SettingsModal'
 import FileManager from './FileManager'
 import CommandHistory from './CommandHistory'
 import Documentation from './Documentation'
+import SftpManager from './SftpManager'
 import toast from 'react-hot-toast'
 
 const Sidebar: React.FC = () => {
@@ -44,6 +45,8 @@ const Sidebar: React.FC = () => {
   const [showFileManager, setShowFileManager] = useState(false)
   const [showCommandHistory, setShowCommandHistory] = useState(false)
   const [showDocumentation, setShowDocumentation] = useState(false)
+  const [showSftpManager, setShowSftpManager] = useState(false)
+  const [selectedSftpConnection, setSelectedSftpConnection] = useState<string | null>(null)
   const [expandedSections, setExpandedSections] = useState({
     connections: true,
     tools: true
@@ -152,7 +155,7 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
-      <div className="w-80 bg-muted/30 border-r border-border flex flex-col h-full">
+      <div className="w-80 native-sidebar flex flex-col h-full">
         {/* Header */}
         <div className="p-4 border-b border-border bg-gradient-to-br from-primary/5 to-secondary/5">
           <div className="flex items-center justify-between mb-4">
@@ -193,7 +196,7 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 optimized-scroll p-4 space-y-6">
           {/* Connections Section */}
           <div>
             <button
@@ -358,6 +361,25 @@ const Sidebar: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => {
+                      if (connections.length === 0) {
+                        toast.error('يرجى إنشاء اتصال أولاً لاستخدام SFTP')
+                        return
+                      }
+                      setSelectedSftpConnection(connections[0].id)
+                      setShowSftpManager(true)
+                    }}
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
+                    disabled={connections.length === 0}
+                  >
+                    <Server className="w-4 h-4 mr-3" />
+                    <span className="flex-1 text-left">SFTP Manager</span>
+                    <Badge variant="secondary" className="text-xs">نقل الملفات</Badge>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setShowCommandHistory(true)}
                     className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
                   >
@@ -460,13 +482,37 @@ const Sidebar: React.FC = () => {
         editConnection={editingConnection}
       />
 
-      <SettingsModal />
+      <SettingsModal 
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
 
-      <FileManager />
+      <FileManager 
+        isOpen={showFileManager}
+        onClose={() => setShowFileManager(false)}
+      />
 
-      <CommandHistory />
+      <CommandHistory 
+        isOpen={showCommandHistory}
+        onClose={() => setShowCommandHistory(false)}
+      />
 
-      <Documentation />
+      <Documentation 
+        isOpen={showDocumentation}
+        onClose={() => setShowDocumentation(false)}
+      />
+
+      {/* SFTP Manager */}
+      {selectedSftpConnection && (
+        <SftpManager
+          connectionId={selectedSftpConnection}
+          isOpen={showSftpManager}
+          onClose={() => {
+            setShowSftpManager(false)
+            setSelectedSftpConnection(null)
+          }}
+        />
+      )}
     </>
   )
 }

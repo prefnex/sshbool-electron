@@ -141,7 +141,7 @@ const AppContent: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in">
       {/* Custom Title Bar */}
-      <div className="h-12 bg-muted/30 border-b border-border flex items-center justify-between px-4 select-none">
+      <div className="h-12 title-bar flex items-center justify-between px-4 select-none">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center">
             <Terminal className="w-5 h-5 text-primary-foreground" />
@@ -190,11 +190,11 @@ const AppContent: React.FC = () => {
                     {user.username}
                   </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={lock}>
+                  <DropdownMenuItem onClick={lock} className="cursor-pointer">
                     <Lock className="w-4 h-4 mr-2" />
                     قفل التطبيق
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={logout} className="text-destructive">
+                  <DropdownMenuItem onClick={logout} className="text-destructive cursor-pointer">
                     <LogOut className="w-4 h-4 mr-2" />
                     تسجيل الخروج
                   </DropdownMenuItem>
@@ -206,7 +206,8 @@ const AppContent: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setShowSettings(true)}
-              className="h-8 w-8 p-0 hover:bg-accent"
+              className="h-8 w-8 p-0 hover:bg-accent native-button"
+              title="فتح الإعدادات"
             >
               <Settings className="w-4 h-4" />
             </Button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -112,9 +112,9 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
     { value: 'bar', label: 'Bar', icon: '|' }
   ]
 
-  const handleSettingChange = (key: string, value: any) => {
+  const handleSettingChange = useCallback((key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }))
-  }
+  }, [])
 
   const handleSave = () => {
     // Save settings
@@ -203,19 +203,23 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
   if (!isOpen) return null
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
         className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          transition={{ duration: 0.2 }}
+          initial={{ scale: 0.98, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.98, opacity: 0 }}
+          transition={{ 
+            duration: 0.15,
+            ease: [0.25, 0.8, 0.25, 1]
+          }}
           className="w-full max-w-4xl max-h-[90vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -251,8 +255,8 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
             </CardHeader>
 
             <CardContent className="flex-1 overflow-hidden">
-              <Tabs defaultValue="appearance" className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-5">
+              <Tabs defaultValue="appearance" className="h-full flex flex-col" onValueChange={(value) => console.log('Tab changed to:', value)}>
+                <TabsList className="grid w-full grid-cols-6 p-1 bg-muted/30">
                   <TabsTrigger value="appearance" className="flex items-center gap-2">
                     <Palette className="w-4 h-4" />
                     المظهر
@@ -260,6 +264,10 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                   <TabsTrigger value="terminal" className="flex items-center gap-2">
                     <Terminal className="w-4 h-4" />
                     Terminal
+                  </TabsTrigger>
+                  <TabsTrigger value="language" className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    اللغة
                   </TabsTrigger>
                   <TabsTrigger value="audio" className="flex items-center gap-2">
                     <Volume2 className="w-4 h-4" />
@@ -275,7 +283,7 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                   </TabsTrigger>
                 </TabsList>
 
-                <div className="flex-1 overflow-y-auto mt-4">
+                <div className="flex-1 overflow-y-auto mt-4 scroll-smooth">
                   {/* Appearance Tab */}
                   <TabsContent value="appearance" className="space-y-6 mt-0">
                     <div className="space-y-4">
@@ -440,6 +448,102 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                               <SelectItem value="50000">50,000 سطر</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Language Tab */}
+                  <TabsContent value="language" className="space-y-6 mt-0">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium">إعدادات اللغة</h3>
+                          <p className="text-sm text-muted-foreground">اختر لغة واجهة التطبيق</p>
+                        </div>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>لغة الواجهة</Label>
+                          <Select defaultValue="ar">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ar">العربية (Arabic)</SelectItem>
+                              <SelectItem value="en">English</SelectItem>
+                              <SelectItem value="es">Español</SelectItem>
+                              <SelectItem value="fr">Français</SelectItem>
+                              <SelectItem value="de">Deutsch</SelectItem>
+                              <SelectItem value="zh">中文</SelectItem>
+                              <SelectItem value="ja">日本語</SelectItem>
+                              <SelectItem value="ru">Русский</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            تغيير اللغة يتطلب إعادة تشغيل التطبيق
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>اتجاه النص</Label>
+                          <Select defaultValue="rtl">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="rtl">من اليمين إلى اليسار (RTL)</SelectItem>
+                              <SelectItem value="ltr">من اليسار إلى اليمين (LTR)</SelectItem>
+                              <SelectItem value="auto">تلقائي حسب اللغة</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>تنسيق التاريخ والوقت</Label>
+                          <Select defaultValue="arabic">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="arabic">عربي (١٤٤٥/١٢/١٥)</SelectItem>
+                              <SelectItem value="gregorian">ميلادي (2024/01/15)</SelectItem>
+                              <SelectItem value="mixed">مختلط</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>تبديل اللغة السريع</Label>
+                            <p className="text-xs text-muted-foreground">تفعيل تبديل اللغة باستخدام Alt+Shift</p>
+                          </div>
+                          <Switch defaultChecked />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="space-y-3">
+                          <h4 className="font-medium">إعدادات إضافية</h4>
+                          
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label>ترجمة رسائل الخطأ</Label>
+                              <p className="text-xs text-muted-foreground">ترجمة رسائل الخطأ للعربية عند الإمكان</p>
+                            </div>
+                            <Switch defaultChecked />
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label>تحويل الأرقام</Label>
+                              <p className="text-xs text-muted-foreground">عرض الأرقام بالأرقام العربية</p>
+                            </div>
+                            <Switch />
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -66,7 +66,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     // Get current theme
     const currentTheme = getThemeById(terminalTheme) || getDefaultTheme()
 
-    // Initialize xterm.js
+    // Initialize xterm.js with improved configuration
     const xterm = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
@@ -79,7 +79,19 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       scrollback: 5000,
       tabStopWidth: 4,
       rows: 30,
-      cols: 100
+      cols: 100,
+      // Improve performance and reduce shaking
+      fastScrollModifier: 'alt',
+      fastScrollSensitivity: 5,
+      scrollSensitivity: 1,
+      // Improve rendering performance
+      disableStdin: false,
+      windowsMode: false,
+      macOptionIsMeta: true,
+      minimumContrastRatio: 1,
+      // Disable problematic features that cause issues
+      altClickMovesCursor: false,
+      rightClickSelectsWord: false
     })
 
     // Add addons
@@ -156,15 +168,54 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       }
     })
 
-    // Handle input - simplified for better SSH compatibility
-    xterm.onData((data) => {
-      if (!isConnected) return
+    // Handle input with improved reliability and debouncing
+    let inputBuffer = '';
+    let inputTimer: NodeJS.Timeout | null = null;
+    
+    const flushInput = () => {
+      if (inputBuffer && isConnected) {
+        sshService.sendInput(connection.id, inputBuffer)
+        inputBuffer = '';
+        updateTerminalActivity(terminalId)
+      }
+    };
 
-      // For interactive SSH, just pass all input directly to the server
-      // The server will handle echo, command processing, etc.
-      sshService.sendInput(connection.id, data)
+    xterm.onData((data) => {
+      if (!isConnected) {
+        // Show connection status if trying to input while disconnected
+        xterm.write('\r\n\x1b[91m⚠️  Not connected to server. Please reconnect.\x1b[0m\r\n')
+        return
+      }
+
+      // Clear existing timer
+      if (inputTimer) {
+        clearTimeout(inputTimer)
+      }
+
+      // For special keys (Enter, Backspace, etc.), send immediately
+      const isSpecialKey = data === '\r' || data === '\n' || data === '\x7f' || data === '\x08' || 
+                          data.charCodeAt(0) < 32 || data.includes('\x1b')
       
-      updateTerminalActivity(terminalId)
+      if (isSpecialKey) {
+        // Send any buffered input first
+        if (inputBuffer) {
+          sshService.sendInput(connection.id, inputBuffer)
+          inputBuffer = ''
+        }
+        // Then send the special key
+        sshService.sendInput(connection.id, data)
+        updateTerminalActivity(terminalId)
+      } else {
+        // Buffer regular characters
+        inputBuffer += data
+        // Set timer to flush after short delay
+        inputTimer = setTimeout(flushInput, 5)
+        
+        // If buffer gets too large, flush immediately
+        if (inputBuffer.length > 100) {
+          flushInput()
+        }
+      }
     })
 
     // Handle resize
@@ -189,6 +240,16 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
 
     // Cleanup
     return () => {
+      // Clear any pending timers
+      if (inputTimer) {
+        clearTimeout(inputTimer)
+      }
+      
+      // Flush any remaining input
+      if (inputBuffer && isConnected) {
+        sshService.sendInput(connection.id, inputBuffer)
+      }
+      
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect()
       }
@@ -273,20 +334,31 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       setTerminalUnread(terminalId, true)
     }
 
-    // Write output to terminal with appropriate styling
-    switch (output.type) {
-      case 'stdout':
-        xtermRef.current.write(output.data)
-        break
-      case 'stderr':
-        xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
-        break
-      case 'info':
-        xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`) // Blue for info
-        break
-      case 'error':
-        xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
-        break
+    // Write output to terminal with appropriate styling and improved performance
+    try {
+      switch (output.type) {
+        case 'stdout':
+          // Write stdout data as-is for better compatibility
+          xtermRef.current.write(output.data)
+          break
+        case 'stderr':
+          xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
+          break
+        case 'info':
+          xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`) // Blue for info
+          break
+        case 'error':
+          xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
+          break
+      }
+    } catch (error) {
+      console.error('Failed to write to terminal:', error)
+      // Try to recover by writing a simple error message
+      try {
+        xtermRef.current.write('\r\n\x1b[91m[Terminal Error: Failed to display output]\x1b[0m\r\n')
+      } catch (recoveryError) {
+        console.error('Terminal recovery failed:', recoveryError)
+      }
     }
   }
 
@@ -501,7 +573,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
         <div 
           ref={terminalRef} 
           className={cn(
-            "w-full h-full p-2",
+            "w-full h-full p-2 terminal-scroll",
             !isActive && "opacity-50"
           )}
         />
