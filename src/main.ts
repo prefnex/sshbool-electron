@@ -188,23 +188,52 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
         timestamp: new Date()
       });
 
-      // Handle shell output
+      // Handle shell output with debouncing to prevent duplication
+      let outputBuffer = '';
+      let outputTimer: NodeJS.Timeout | null = null;
+
+      const flushOutput = () => {
+        if (outputBuffer && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: outputBuffer,
+            type: 'stdout',
+            timestamp: new Date()
+          });
+          outputBuffer = '';
+        }
+      };
+
       shell.on('data', (data: Buffer) => {
-        mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: data.toString(),
-          type: 'stdout',
-          timestamp: new Date()
-        });
+        const newData = data.toString();
+        
+        // Clear existing timer
+        if (outputTimer) {
+          clearTimeout(outputTimer);
+        }
+        
+        // Add to buffer
+        outputBuffer += newData;
+        
+        // Set new timer to flush after a short delay
+        outputTimer = setTimeout(flushOutput, 10);
+        
+        // If buffer gets too large, flush immediately
+        if (outputBuffer.length > 8192) {
+          flushOutput();
+        }
       });
 
       shell.stderr.on('data', (data: Buffer) => {
-        mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: data.toString(),
-          type: 'stderr',
-          timestamp: new Date()
-        });
+        // Send stderr immediately without buffering
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: data.toString(),
+            type: 'stderr',
+            timestamp: new Date()
+          });
+        }
       });
 
       shell.on('close', () => {
