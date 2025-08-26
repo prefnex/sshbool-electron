@@ -231,3 +231,170 @@ html:not(.dark) .xterm .xterm-screen {
   pointer-events: none;
 }
 
+/* RTL Support */
+html[dir="rtl"] {
+  direction: rtl;
+}
+
+html[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+html[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* Input field fixes for Arabic/English typing */
+input, textarea {
+  outline: none !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+  cursor: text !important;
+}
+
+input:focus, textarea:focus {
+  outline: 2px solid hsl(var(--ring)) !important;
+  outline-offset: 2px !important;
+}
+
+/* Ensure inputs accept all types of text */
+input[type="text"], input[type="search"], textarea {
+  font-family: inherit;
+  unicode-bidi: plaintext;
+  direction: ltr;
+}
+
+/* For Arabic input specifically */
+input[lang="ar"], textarea[lang="ar"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Fix any potential z-index issues with modals */
+.modal-overlay {
+  z-index: 50;
+}
+
+.modal-content {
+  z-index: 51;
+}
+
+/* Ensure SFTP inputs are properly styled */
+.sftp-input {
+  position: relative;
+  z-index: 1;
+}
+
+.sftp-input input {
+  width: 100%;
+  pointer-events: auto !important;
+  user-select: text !important;
+}
+
+/* Enhanced visual effects */
+@keyframes glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px hsl(var(--primary) / 0.3); 
+  }
+  50% { 
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.6), 0 0 30px hsl(var(--primary) / 0.4); 
+  }
+}
+
+.btn-gradient:hover {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* Enhanced connection cards */
+.connection-card {
+  background: linear-gradient(135deg, 
+    hsl(var(--card)) 0%, 
+    hsl(var(--card) / 0.8) 100%
+  );
+  backdrop-filter: blur(10px);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+.connection-card:hover {
+  background: linear-gradient(135deg, 
+    hsl(var(--accent)) 0%, 
+    hsl(var(--accent) / 0.9) 100%
+  );
+  box-shadow: 
+    0 10px 25px hsl(var(--foreground) / 0.1),
+    0 0 0 1px hsl(var(--primary) / 0.2);
+}
+
+/* Enhanced terminal styling */
+.xterm {
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px hsl(var(--foreground) / 0.1);
+}
+
+/* Glassmorphism effect for modals */
+.modal-glassmorphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Enhanced scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, 
+    hsl(var(--primary)) 0%, 
+    hsl(var(--primary) / 0.7) 100%
+  );
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, 
+    hsl(var(--primary)) 0%, 
+    hsl(var(--accent-foreground)) 100%
+  );
+}
+
+/* Loading animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.loading-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Status indicators */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.status-indicator {
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+/* Enhanced focus states */
+input:focus, textarea:focus, button:focus {
+  outline: 2px solid hsl(var(--ring)) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2) !important;
+}
+

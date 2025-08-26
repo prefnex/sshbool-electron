@@ -81,9 +81,9 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
       // Convert to our SftpFile format
       const sftpFiles: SftpFile[] = files.map(file => ({
         name: file.filename,
-        type: file.attrs.isDirectory() ? 'directory' : 'file',
+        type: (file.attrs.mode & 0o040000) ? 'directory' : 'file', // Check directory bit mask
         size: file.attrs.size || 0,
-        modified: new Date(file.attrs.mtime * 1000),
+        modified: new Date((file.attrs.mtime || Date.now() / 1000) * 1000),
         permissions: file.attrs.mode ? file.attrs.mode.toString(8) : '644',
         owner: file.attrs.uid?.toString() || 'unknown',
         group: file.attrs.gid?.toString() || 'unknown'
@@ -334,17 +334,22 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
               <Folder className="w-4 h-4" />
             </Button>
 
-            <Input
-              value={currentPath}
-              onChange={(e) => setCurrentPath(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  navigateToPath(currentPath)
-                }
-              }}
-              className="flex-1"
-              placeholder="مسار المجلد"
-            />
+            <div className="sftp-input flex-1">
+              <Input
+                value={currentPath}
+                onChange={(e) => setCurrentPath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    navigateToPath(currentPath)
+                  }
+                }}
+                className="w-full"
+                placeholder="مسار المجلد"
+                autoComplete="off"
+                spellCheck={false}
+                type="text"
+              />
+            </div>
 
             <Button
               variant="outline"
@@ -359,12 +364,17 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
           {/* Toolbar */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Input
-                placeholder="بحث في الملفات..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-64"
-              />
+              <div className="sftp-input">
+                <Input
+                  placeholder="بحث في الملفات..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-64"
+                  autoComplete="off"
+                  spellCheck={false}
+                  type="search"
+                />
+              </div>
               
               <Select value={sortBy} onValueChange={(value: 'name' | 'size' | 'date') => setSortBy(value)}>
                 <SelectTrigger className="w-32">

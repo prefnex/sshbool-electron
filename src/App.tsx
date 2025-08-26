@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
-import { Terminal, Settings, X, Minimize2, Maximize2, Square } from 'lucide-react'
+import { Terminal, Settings, X, Minimize2, Maximize2, Square, User, LogOut, Lock } from 'lucide-react'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { I18nProvider, useTranslation } from './contexts/I18nContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { useTerminalStore } from './store/terminal-store'
 import { Button } from './components/ui/button'
 import { Badge } from './components/ui/badge'
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu'
 import Sidebar from './components/Sidebar'
 import TerminalArea from './components/TerminalArea'
 import EnhancedSettingsModal from './components/EnhancedSettingsModal'
 import ThemeSwitcher from './components/ThemeSwitcher'
+import LanguageSelector from './components/LanguageSelector'
+import AuthModal from './components/AuthModal'
 import { useShortcuts } from './hooks/useShortcuts'
 import './index.css'
 
@@ -27,13 +38,18 @@ declare global {
   }
 }
 
-const App: React.FC = () => {
-  const { connections, terminals, addTerminal } = useTerminalStore()
+const AppContent: React.FC = () => {
+  const { connections, terminals, addTerminal, cleanupDuplicateConnections } = useTerminalStore()
+  const { t } = useTranslation()
+  const { isAuthenticated, isLocked, user, logout, lock } = useAuth()
   const [showSettings, setShowSettings] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Clean up duplicate connections on startup
+    cleanupDuplicateConnections()
+    
     // Check initial maximize state
     if (window.electron?.isMaximized) {
       window.electron.isMaximized().then(setIsMaximized)
@@ -113,8 +129,8 @@ const App: React.FC = () => {
             <Terminal className="w-8 h-8 text-primary-foreground" />
           </div>
           <div className="flex flex-col items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground">FlyTerm</h1>
-            <p className="text-muted-foreground">Starting up...</p>
+            <h1 className="text-2xl font-bold text-foreground">{t('app.title')}</h1>
+            <p className="text-muted-foreground">{t('app.startingUp')}</p>
           </div>
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
@@ -123,8 +139,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <ThemeProvider>
-      <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in">
+    <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in">
       {/* Custom Title Bar */}
       <div className="h-12 bg-muted/30 border-b border-border flex items-center justify-between px-4 select-none">
         <div className="flex items-center gap-3">
@@ -132,9 +147,9 @@ const App: React.FC = () => {
             <Terminal className="w-5 h-5 text-primary-foreground" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground">FlyTerm</span>
+            <span className="font-semibold text-foreground">{t('app.title')}</span>
             <Badge variant="outline" className="text-xs">
-              v1.0.0
+              {t('app.version')} 1.0.0
             </Badge>
           </div>
         </div>
@@ -144,22 +159,48 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3 mr-4">
             {connections.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>{connections.length} Connection{connections.length !== 1 ? 's' : ''}</span>
+                <div className="w-2 h-2 bg-green-500 rounded-full status-indicator"></div>
+                <span>{connections.length} {t('sidebar.connections')}</span>
               </div>
             )}
             
             {terminals.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>{terminals.length} Terminal{terminals.length !== 1 ? 's' : ''}</span>
+                <div className="w-2 h-2 bg-blue-500 rounded-full status-indicator"></div>
+                <span>{terminals.length} {t('sidebar.terminals')}</span>
               </div>
             )}
           </div>
 
           {/* Window Controls */}
           <div className="flex items-center gap-1">
+            <LanguageSelector />
             <ThemeSwitcher />
+            
+            {/* User Menu */}
+            {isAuthenticated && user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-accent">
+                    <User className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="bottom">
+                  <div className="px-2 py-1.5 text-sm font-medium">
+                    {user.username}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={lock}>
+                    <Lock className="w-4 h-4 mr-2" />
+                    قفل التطبيق
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={logout} className="text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    تسجيل الخروج
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             
             <Button
               variant="ghost"
@@ -225,6 +266,12 @@ const App: React.FC = () => {
         onClose={() => setShowSettings(false)}
       />
 
+      {/* Authentication Modal */}
+      <AuthModal 
+        isOpen={!isAuthenticated || isLocked} 
+        mode={isLocked ? 'unlock' : 'login'} 
+      />
+
       {/* Toast Notifications */}
       <Toaster
         position="top-right"
@@ -252,7 +299,18 @@ const App: React.FC = () => {
           },
         }}
       />
-      </div>
+    </div>
+  )
+}
+
+const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </I18nProvider>
     </ThemeProvider>
   )
 }

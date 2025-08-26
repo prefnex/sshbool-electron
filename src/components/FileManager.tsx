@@ -75,9 +75,9 @@ const FileManager: React.FC<FileManagerProps> = ({ isOpen, onClose }) => {
       const items = await sshService.listDirectory(connection.id, path)
       const formattedFiles: FileItem[] = items.map(item => ({
         name: item.filename,
-        type: item.attrs.isDirectory() ? 'directory' : 'file',
+        type: (item.attrs.mode & 0o040000) ? 'directory' : 'file', // Check directory bit mask
         size: item.attrs.size || 0,
-        modified: new Date(item.attrs.mtime * 1000),
+        modified: new Date((item.attrs.mtime || Date.now() / 1000) * 1000),
         permissions: item.attrs.mode ? item.attrs.mode.toString(8) : '0755',
         owner: 'user',
         group: 'user'
