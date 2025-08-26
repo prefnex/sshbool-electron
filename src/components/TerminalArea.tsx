@@ -105,14 +105,36 @@ const TerminalArea: React.FC = () => {
       return (
         <TerminalTab
           key={terminal.id}
-          terminal={terminal}
-          onClose={handleCloseTerminal}
-          onMaximize={handleMaximizeTerminal}
-          isMaximized={true}
+          terminalId={terminal.id}
+          isActive={true}
+          onClose={() => handleCloseTerminal(terminal.id)}
         />
       )
     }
 
+    // For single layout (default), show only the active terminal (tab-style)
+    if (layout === 'single') {
+      const activeTerminal = terminals.find(t => t.id === activeTerminalId) || terminals[0]
+      
+      return (
+        <motion.div
+          key={activeTerminal.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.2 }}
+          className="h-full"
+        >
+          <TerminalTab
+            terminalId={activeTerminal.id}
+            isActive={true}
+            onClose={() => handleCloseTerminal(activeTerminal.id)}
+          />
+        </motion.div>
+      )
+    }
+
+    // For split and grid layouts, show multiple terminals
     return (
       <div className={cn("h-full", getLayoutClasses())}>
         {terminals.map((terminal, index) => (
@@ -124,18 +146,15 @@ const TerminalArea: React.FC = () => {
             transition={{ duration: 0.2 }}
             className={cn(
               "h-full",
-              layout === 'single' && "flex-1",
               layout === 'split' && index >= 2 && "hidden",
               layout === 'grid' && index >= 4 && "hidden"
             )}
           >
-            <div data-terminal-id={terminal.id}>
-              <TerminalTab
-                terminalId={terminal.id}
-                isActive={activeTerminalId === terminal.id}
-                onClose={() => handleCloseTerminal(terminal.id)}
-              />
-            </div>
+            <TerminalTab
+              terminalId={terminal.id}
+              isActive={activeTerminalId === terminal.id}
+              onClose={() => handleCloseTerminal(terminal.id)}
+            />
           </motion.div>
         ))}
       </div>

@@ -35,6 +35,7 @@ export interface TerminalState {
   fontFamily: string
   showLineNumbers: boolean
   showStatusBar: boolean
+  language: 'en' | 'ar'
   
   // Actions
   addConnection: (connection: Omit<Connection, 'id' | 'isConnected'>) => void
@@ -55,6 +56,8 @@ export interface TerminalState {
   setFontFamily: (family: string) => void
   toggleLineNumbers: () => void
   toggleStatusBar: () => void
+  cleanupDuplicateConnections: () => void
+  setLanguage: (language: 'en' | 'ar') => void
 }
 
 const defaultConnections: Connection[] = []
@@ -72,8 +75,25 @@ export const useTerminalStore = create<TerminalState>()(
       fontFamily: 'JetBrains Mono',
       showLineNumbers: true,
       showStatusBar: true,
+      language: 'ar',
 
       addConnection: (connection) => set((state) => {
+        // Check for duplicates based on host, port, and username
+        const existing = state.connections.find(c => 
+          c.host === connection.host && 
+          c.port === connection.port && 
+          c.username === connection.username
+        )
+        
+        if (existing) {
+          console.log('Connection already exists, updating instead of adding duplicate')
+          return {
+            connections: state.connections.map(c => 
+              c.id === existing.id ? { ...c, ...connection, id: existing.id, isConnected: false } : c
+            )
+          }
+        }
+        
         const newConnection = {
           ...connection,
           id: `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -160,7 +180,25 @@ export const useTerminalStore = create<TerminalState>()(
       setFontSize: (fontSize) => set({ fontSize }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
       toggleLineNumbers: () => set((state) => ({ showLineNumbers: !state.showLineNumbers })),
-      toggleStatusBar: () => set((state) => ({ showStatusBar: !state.showStatusBar }))
+      toggleStatusBar: () => set((state) => ({ showStatusBar: !state.showStatusBar })),
+      
+      cleanupDuplicateConnections: () => set((state) => {
+        const seen = new Set<string>()
+        const uniqueConnections: Connection[] = []
+        
+        for (const conn of state.connections) {
+          const key = `${conn.host}:${conn.port}:${conn.username}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            uniqueConnections.push(conn)
+          }
+        }
+        
+        console.log(`Cleaned up ${state.connections.length - uniqueConnections.length} duplicate connections`)
+        return { connections: uniqueConnections }
+      }),
+      
+      setLanguage: (language) => set({ language })
     }),
     {
       name: 'flyterm-storage',
@@ -171,7 +209,8 @@ export const useTerminalStore = create<TerminalState>()(
         fontSize: state.fontSize,
         fontFamily: state.fontFamily,
         showLineNumbers: state.showLineNumbers,
-        showStatusBar: state.showStatusBar
+        showStatusBar: state.showStatusBar,
+        language: state.language
       })
     }
   )
