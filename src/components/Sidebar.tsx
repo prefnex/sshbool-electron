@@ -46,12 +46,18 @@ const Sidebar: React.FC = () => {
   
   const connectionsLoadedRef = useRef(false)
 
-  // Load saved connections on mount
+  // Load saved connections on mount and cleanup duplicates
   useEffect(() => {
     if (connectionsLoadedRef.current) return
     
     const loadSavedConnections = async () => {
       try {
+        // First cleanup duplicates and demo data
+        const cleanupResults = await connectionStorage.cleanupConnections()
+        if (cleanupResults.duplicatesRemoved > 0 || cleanupResults.demoRemoved > 0) {
+          toast.success(`Cleaned up ${cleanupResults.duplicatesRemoved} duplicates and ${cleanupResults.demoRemoved} demo connections`)
+        }
+
         const savedConnections = await connectionStorage.loadConnections()
         if (savedConnections.length > 0) {
           // Add saved connections to store

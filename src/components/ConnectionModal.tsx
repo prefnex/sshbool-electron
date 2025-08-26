@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Server, User, Lock, Key, Eye, EyeOff, Palette } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
+import { connectionStorage } from '../services/connection-storage'
 import { cn } from '../lib/utils'
 import { isValidHostname, isValidPort, generateId } from '../lib/utils'
 import { Button } from './ui/button'
@@ -88,7 +89,7 @@ const ConnectionModal: React.FC = () => {
     }
 
     try {
-      addConnection({
+      const newConnection = {
         name: formData.name.trim(),
         host: formData.host.trim(),
         port: parseInt(formData.port),
@@ -97,7 +98,18 @@ const ConnectionModal: React.FC = () => {
         privateKey: formData.connectionType === 'privateKey' ? formData.privateKey.trim() : undefined,
         connectionType: formData.connectionType,
         color: formData.color
-      })
+      }
+
+      // Add to store
+      addConnection(newConnection)
+
+      // Also save to persistent storage
+      const connectionWithId = {
+        ...newConnection,
+        id: `conn-${Date.now()}`,
+        isConnected: false
+      }
+      await connectionStorage.addConnection(connectionWithId)
 
       toast.success('Connection added successfully!')
       handleClose()
@@ -358,8 +370,7 @@ const ConnectionModal: React.FC = () => {
                     {/* Submit Button */}
                     <Button
                       type="submit"
-                      variant="gradient"
-                      className="w-full mt-6"
+                      className="w-full mt-6 btn-gradient"
                     >
                       Add Connection
                     </Button>

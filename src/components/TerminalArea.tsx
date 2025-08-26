@@ -116,10 +116,9 @@ const TerminalArea: React.FC = () => {
             )}
           >
             <TerminalTab
-              terminal={terminal}
-              onClose={handleCloseTerminal}
-              onMaximize={handleMaximizeTerminal}
-              isMaximized={false}
+              terminalId={terminal.id}
+              isActive={activeTerminalId === terminal.id}
+              onClose={() => handleCloseTerminal(terminal.id)}
             />
           </motion.div>
         ))}
