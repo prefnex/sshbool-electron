@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { sshService, SSHOutput } from '../services/ssh-service'
+import { getThemeById, getDefaultTheme } from '../lib/terminal-themes'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -50,7 +51,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [currentCommand, setCurrentCommand] = useState('')
   
-  const { terminals, connections, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
+  const { terminals, connections, terminalTheme, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
   
   const terminal = terminals.find(t => t.id === terminalId)
   const connection = terminal ? connections.find(c => c.id === terminal.connectionId) : null
@@ -59,6 +60,9 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   useEffect(() => {
     if (!terminalRef.current || !terminal || !connection) return
 
+    // Get current theme
+    const currentTheme = getThemeById(terminalTheme) || getDefaultTheme()
+
     // Initialize xterm.js
     const xterm = new Terminal({
       cursorBlink: true,
@@ -66,29 +70,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       fontSize: 15,
       fontFamily: 'JetBrains Mono, Fira Code, Consolas, "Courier New", monospace',
       fontWeight: 500,
-      theme: {
-        background: '#0a0a0a',
-        foreground: '#f1f5f9',
-        cursor: '#00ff88',
-        cursorAccent: '#0a0a0a',
-        selection: 'rgba(0, 255, 136, 0.4)',
-        black: '#1e293b',
-        red: '#ff6b6b',
-        green: '#00ff88',
-        yellow: '#ffd93d',
-        blue: '#74c7ec',
-        magenta: '#f9c2ff',
-        cyan: '#89dceb',
-        white: '#f1f5f9',
-        brightBlack: '#64748b',
-        brightRed: '#ff8a95',
-        brightGreen: '#4ade80',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#d8b4fe',
-        brightCyan: '#22d3ee',
-        brightWhite: '#ffffff'
-      },
+      theme: currentTheme.colors,
       allowTransparency: false,
       convertEol: true,
       scrollback: 5000,

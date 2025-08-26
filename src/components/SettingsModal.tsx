@@ -11,6 +11,7 @@ import { Separator } from './ui/separator'
 import { Badge } from './ui/badge'
 import { Switch } from './ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import ThemeSelector from './ThemeSelector'
 
 const SettingsModal: React.FC = () => {
   const { 
@@ -210,6 +211,9 @@ const SettingsModal: React.FC = () => {
                   </div>
 
                   <Separator />
+
+                  {/* Terminal Themes */}
+                  <ThemeSelector />
 
                   {/* Preview */}
                   <div className="space-y-4">

@@ -9,7 +9,11 @@ import {
   BookOpen, 
   FolderOpen,
   ChevronRight,
-  MoreVertical
+  MoreVertical,
+  Key,
+  Wifi,
+  Monitor,
+  Zap
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { connectionStorage } from '../services/connection-storage'
@@ -35,6 +39,7 @@ const Sidebar: React.FC = () => {
   } = useTerminalStore()
   
   const [showConnectionModal, setShowConnectionModal] = useState(false)
+  const [editingConnection, setEditingConnection] = useState<any>(null)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showFileManager, setShowFileManager] = useState(false)
   const [showCommandHistory, setShowCommandHistory] = useState(false)
@@ -83,9 +88,8 @@ const Sidebar: React.FC = () => {
   }
 
   const handleEditConnection = (connection: any) => {
-    // TODO: Implement edit functionality
-    console.log('Edit connection:', connection)
-    toast.success('Edit functionality coming soon')
+    setEditingConnection(connection)
+    setShowConnectionModal(true)
   }
 
   const handleDeleteConnection = async (connectionId: string) => {
@@ -118,6 +122,7 @@ const Sidebar: React.FC = () => {
 
   const handleConnectionModalClose = () => {
     setShowConnectionModal(false)
+    setEditingConnection(null)
   }
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -149,23 +154,42 @@ const Sidebar: React.FC = () => {
     <>
       <div className="w-80 bg-muted/30 border-r border-border flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border bg-gradient-to-br from-primary/5 to-secondary/5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">FlyTerm</h2>
-            <Badge variant="outline" className="text-xs">
-              v1.0.0
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center">
+                <Server className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">FlyTerm</h2>
+            </div>
+            <Badge variant="outline" className="text-xs bg-background/50">
+              v1.0.0 Pro
             </Badge>
           </div>
           
-          <Button
-            onClick={handleNewConnection}
-            variant="default"
-            size="sm"
-            className="w-full"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Connection
-          </Button>
+          <div className="space-y-3">
+            <Button
+              onClick={handleNewConnection}
+              variant="default"
+              size="sm"
+              className="w-full btn-gradient shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Connection
+            </Button>
+            
+            {/* Quick Stats */}
+            <div className="flex gap-2 text-xs">
+              <div className="flex-1 bg-background/30 rounded-lg p-2 text-center">
+                <div className="font-bold text-primary">{connections.length}</div>
+                <div className="text-muted-foreground">Connections</div>
+              </div>
+              <div className="flex-1 bg-background/30 rounded-lg p-2 text-center">
+                <div className="font-bold text-green-500">0</div>
+                <div className="text-muted-foreground">Active</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Content */}
@@ -224,14 +248,27 @@ const Sidebar: React.FC = () => {
                               : "bg-card/50 border-border/50 hover:bg-card hover:border-border"
                           )}>
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className={cn(
-                                "w-2 h-2 rounded-full",
-                                getStatusColor(status)
-                              )} />
+                              <div className="relative">
+                                <div 
+                                  className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                                  style={{ backgroundColor: connection.color || '#3B82F6' }}
+                                >
+                                  {connection.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className={cn(
+                                  "absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background",
+                                  getStatusColor(status)
+                                )} />
+                              </div>
                               
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm truncate">
-                                  {connection.name}
+                                <div className="flex items-center gap-2">
+                                  <div className="font-medium text-sm truncate">
+                                    {connection.name}
+                                  </div>
+                                  {connection.connectionType === 'privateKey' && (
+                                    <Key className="w-3 h-3 text-yellow-500" />
+                                  )}
                                 </div>
                                 <div className="text-xs text-muted-foreground truncate">
                                   {connection.username}@{connection.host}:{connection.port}
@@ -311,40 +348,63 @@ const Sidebar: React.FC = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowFileManager(true)}
-                    className="w-full justify-start"
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     <FolderOpen className="w-4 h-4 mr-3" />
-                    File Manager
+                    <span className="flex-1 text-left">File Manager</span>
+                    <Badge variant="outline" className="text-xs">Pro</Badge>
                   </Button>
 
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowCommandHistory(true)}
-                    className="w-full justify-start"
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     <History className="w-4 h-4 mr-3" />
-                    Command History
+                    <span className="flex-1 text-left">Command History</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toast.success('🔄 Network Monitor - Coming Soon!')}
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
+                  >
+                    <Wifi className="w-4 h-4 mr-3" />
+                    <span className="flex-1 text-left">Network Monitor</span>
+                    <Badge variant="secondary" className="text-xs">New</Badge>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toast.success('⚡ Performance Monitor - Coming Soon!')}
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
+                  >
+                    <Monitor className="w-4 h-4 mr-3" />
+                    <span className="flex-1 text-left">System Monitor</span>
+                    <Badge variant="secondary" className="text-xs">New</Badge>
                   </Button>
 
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowDocumentation(true)}
-                    className="w-full justify-start"
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     <BookOpen className="w-4 h-4 mr-3" />
-                    Documentation
+                    <span className="flex-1 text-left">Documentation</span>
                   </Button>
 
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowSettingsModal(true)}
-                    className="w-full justify-start"
+                    className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     <Settings className="w-4 h-4 mr-3" />
-                    Settings
+                    <span className="flex-1 text-left">Settings</span>
                   </Button>
                 </motion.div>
               )}
@@ -353,10 +413,42 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border">
-          <div className="text-xs text-muted-foreground text-center">
-            <div className="mb-2">Made with ❤️</div>
-            <div>FlyTerm Terminal</div>
+        <div className="p-4 border-t border-border bg-gradient-to-r from-primary/5 to-secondary/5">
+          <div className="space-y-3">
+            {/* Status Indicator */}
+            <div className="flex items-center justify-center gap-2 text-xs">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-green-400 font-medium">System Online</span>
+            </div>
+            
+            {/* Info */}
+            <div className="text-xs text-muted-foreground text-center space-y-1">
+              <div className="flex items-center justify-center gap-1">
+                <Zap className="w-3 h-3 text-yellow-500" />
+                <span>Made with ❤️</span>
+              </div>
+              <div className="font-bold text-primary">FlyTerm Pro</div>
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="flex gap-1">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex-1 h-8 text-xs hover:bg-primary/10"
+                onClick={() => toast.success('⚡ Quick tips: Use Ctrl+C, Ctrl+L, Tab for autocomplete!')}
+              >
+                Tips
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="flex-1 h-8 text-xs hover:bg-primary/10"
+                onClick={() => toast.success('🆘 Help: Check documentation for guides!')}
+              >
+                Help
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -365,6 +457,7 @@ const Sidebar: React.FC = () => {
       <ConnectionModal 
         isOpen={showConnectionModal}
         onClose={handleConnectionModalClose}
+        editConnection={editingConnection}
       />
 
       <SettingsModal />
