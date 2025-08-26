@@ -10,6 +10,18 @@ import TerminalArea from './components/TerminalArea'
 import SettingsModal from './components/SettingsModal'
 import './index.css'
 
+// Extend Window interface for Electron
+declare global {
+  interface Window {
+    electron?: {
+      minimize?: () => void
+      maximize?: () => void
+      unmaximize?: () => void
+      close?: () => void
+    }
+  }
+}
+
 const App: React.FC = () => {
   const { connections, terminals } = useTerminalStore()
   const [showSettings, setShowSettings] = useState(false)

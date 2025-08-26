@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Plus, 
@@ -43,9 +43,13 @@ const Sidebar: React.FC = () => {
     connections: true,
     tools: true
   })
+  
+  const connectionsLoadedRef = useRef(false)
 
   // Load saved connections on mount
   useEffect(() => {
+    if (connectionsLoadedRef.current) return
+    
     const loadSavedConnections = async () => {
       try {
         const savedConnections = await connectionStorage.loadConnections()
@@ -57,14 +61,16 @@ const Sidebar: React.FC = () => {
             }
           })
         }
+        connectionsLoadedRef.current = true
       } catch (error) {
         console.error('Failed to load saved connections:', error)
         toast.error('Failed to load saved connections')
+        connectionsLoadedRef.current = true
       }
     }
 
     loadSavedConnections()
-  }, [])
+  }, [addConnection, connections])
 
   const handleNewConnection = () => {
     setShowConnectionModal(true)
