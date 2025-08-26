@@ -11,6 +11,7 @@ import {
   Settings,
   Zap,
   Copy,
+  Clipboard,
   RotateCcw,
   Palette,
   FolderOpen
@@ -448,9 +449,24 @@ const TerminalArea: React.FC = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
                         if (connection) {
-                          toast.success(`🌐 Opening SSH session for ${connection.name}`)
+                          // Create new terminal with same connection
+                          const newTerminalId = `terminal-${Date.now()}`
+                          addTerminal({
+                            id: newTerminalId,
+                            title: `${connection.name} (${terminals.length + 1})`,
+                            connectionId: connection.id,
+                            createdAt: new Date(),
+                            lastActivity: new Date(),
+                            isActive: false,
+                            unread: false
+                          })
+                          setActiveTabType('terminal')
+                          setActiveTerminal(newTerminalId)
+                          toast.success(`🌐 New SSH session opened for ${connection.name}`)
                         }
                       }}
                     >
@@ -458,9 +474,20 @@ const TerminalArea: React.FC = () => {
                       New SSH Session
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
                         if (connection) {
-                          toast.success(`📁 Opening SFTP for ${connection.name}`)
+                          // Create new SFTP tab
+                          const newSftpId = `sftp-${Date.now()}`
+                          addSftpTab({
+                            id: newSftpId,
+                            title: `SFTP: ${connection.name}`,
+                            connectionId: connection.id
+                          })
+                          setActiveTabType('sftp')
+                          setActiveSftp(newSftpId)
+                          toast.success(`📁 SFTP opened for ${connection.name}`)
                         }
                       }}
                     >
@@ -469,28 +496,76 @@ const TerminalArea: React.FC = () => {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => handleMaximizeTerminal(terminal.id)}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleMaximizeTerminal(terminal.id)
+                        toast.success(maximizedTerminal === terminal.id ? '📺 Exited fullscreen' : '📺 Entered fullscreen')
+                      }}
                     >
                       <Maximize2 className="w-4 h-4 mr-2" />
                       {maximizedTerminal === terminal.id ? 'Exit Fullscreen' : 'Fullscreen'}
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
-                        const termElement = document.querySelector(`[data-terminal-id="${terminal.id}"] .xterm`)
-                        if (termElement) {
-                          const xterm = (termElement as any)._xterm
-                          if (xterm) xterm.clear()
-                          toast.success('🧹 Terminal cleared!')
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        // Clear terminal using a more reliable method
+                        const terminalTab = document.querySelector(`[data-terminal-id="${terminal.id}"]`)
+                        if (terminalTab) {
+                          // Send clear command instead of using xterm API
+                          const connection = connections.find(c => c.id === terminal.connectionId)
+                          if (connection) {
+                            window.electron.ssh.sendInput(connection.id, 'clear\r')
+                            toast.success('🧹 Terminal cleared!')
+                          }
                         }
                       }}
                     >
                       <RotateCcw className="w-4 h-4 mr-2" />
                       Clear Terminal
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        // Copy terminal output
+                        const terminalTab = document.querySelector(`[data-terminal-id="${terminal.id}"] .xterm-screen`)
+                        if (terminalTab) {
+                          const text = terminalTab.textContent || ''
+                          navigator.clipboard.writeText(text)
+                          toast.success('📋 Terminal output copied!')
+                        }
+                      }}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copy All Output
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        // Paste from clipboard
+                        navigator.clipboard.readText().then(text => {
+                          const connection = connections.find(c => c.id === terminal.connectionId)
+                          if (connection && text) {
+                            window.electron.ssh.sendInput(connection.id, text)
+                            toast.success('📋 Text pasted!')
+                          }
+                        })
+                      }}
+                    >
+                      <Clipboard className="w-4 h-4 mr-2" />
+                      Paste
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => handleCloseTerminal(terminal.id)}
-                      className="text-destructive"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleCloseTerminal(terminal.id)
+                      }}
+                      className="text-destructive hover:bg-destructive/10"
                     >
                       <X className="w-4 h-4 mr-2" />
                       Close Terminal
