@@ -362,7 +362,10 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* Modals */}
-      <ConnectionModal />
+      <ConnectionModal 
+        isOpen={showConnectionModal}
+        onClose={handleConnectionModalClose}
+      />
 
       <SettingsModal />
 
