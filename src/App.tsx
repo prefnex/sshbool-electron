@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'react-hot-toast'
 import { Terminal, Settings, X, Minimize2, Maximize2, Square } from 'lucide-react'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { useTerminalStore } from './store/terminal-store'
 import { Button } from './components/ui/button'
 import { Badge } from './components/ui/badge'
 import Sidebar from './components/Sidebar'
 import TerminalArea from './components/TerminalArea'
-import SettingsModal from './components/SettingsModal'
+import EnhancedSettingsModal from './components/EnhancedSettingsModal'
+import ThemeSwitcher from './components/ThemeSwitcher'
+import { useShortcuts } from './hooks/useShortcuts'
 import './index.css'
 
 // Extend Window interface for Electron
@@ -25,7 +28,7 @@ declare global {
 }
 
 const App: React.FC = () => {
-  const { connections, terminals } = useTerminalStore()
+  const { connections, terminals, addTerminal } = useTerminalStore()
   const [showSettings, setShowSettings] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -48,6 +51,41 @@ const App: React.FC = () => {
 
     return () => clearTimeout(timer)
   }, [])
+
+  // Keyboard shortcuts
+  useShortcuts([
+    {
+      key: 't',
+      ctrlKey: true,
+      shiftKey: true,
+      action: () => {
+        if (connections.length > 0) {
+          const connection = connections[0]
+          addTerminal({
+            connectionId: connection.id,
+            title: `${connection.name} - ${connection.host}`,
+          })
+        }
+      },
+      description: 'New Terminal'
+    },
+    {
+      key: ',',
+      ctrlKey: true,
+      action: () => setShowSettings(true),
+      description: 'Open Settings'
+    },
+    {
+      key: 'w',
+      ctrlKey: true,
+      action: () => {
+        if (window.electron) {
+          window.electron.close()
+        }
+      },
+      description: 'Close Window'
+    }
+  ])
 
   const handleMinimize = () => {
     if (window.electron) {
@@ -85,7 +123,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in dark">
+    <ThemeProvider>
+      <div className="h-screen w-screen bg-background text-foreground overflow-hidden animate-fade-in">
       {/* Custom Title Bar */}
       <div className="h-12 bg-muted/30 border-b border-border flex items-center justify-between px-4 select-none">
         <div className="flex items-center gap-3">
@@ -120,6 +159,8 @@ const App: React.FC = () => {
 
           {/* Window Controls */}
           <div className="flex items-center gap-1">
+            <ThemeSwitcher />
+            
             <Button
               variant="ghost"
               size="sm"
@@ -179,7 +220,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Settings Modal */}
-      <SettingsModal
+      <EnhancedSettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
       />
@@ -211,7 +252,8 @@ const App: React.FC = () => {
           },
         }}
       />
-    </div>
+      </div>
+    </ThemeProvider>
   )
 }
 

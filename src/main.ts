@@ -226,9 +226,8 @@ ipcMain.handle('ssh-send-input', async (event, connectionId, input) => {
   if (!connection || !connection.isConnected || !connection.shell) return;
 
   try {
-    // Add newline if not present
-    const command = input.endsWith('\n') || input.endsWith('\r\n') ? input : input + '\r\n';
-    connection.shell.write(command);
+    // Send input as-is without modification
+    connection.shell.write(input);
     
     // Update last activity
     connection.lastActivity = new Date();
