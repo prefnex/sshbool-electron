@@ -181,21 +181,47 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
       connection.shell = shell;
       sshConnections.set(connectionId, connection);
 
-      mainWindow.webContents.send('ssh-output', {
-        connectionId,
-        data: '🚀 Interactive shell started. Ready for commands...\r\n',
-        type: 'info',
-        timestamp: new Date()
-      });
+      // Send welcome message after a short delay to ensure terminal is ready
+      setTimeout(() => {
+        if (mainWindow) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: '\r\n',
+            type: 'info',
+            timestamp: new Date()
+          });
+        }
+      }, 100);
 
       // Handle shell output
+      let outputBuffer = '';
+      let bufferTimeout: NodeJS.Timeout | null = null;
+      
+      const sendBufferedOutput = () => {
+        if (outputBuffer && mainWindow) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: outputBuffer,
+            type: 'stdout',
+            timestamp: new Date()
+          });
+          outputBuffer = '';
+        }
+      };
+      
       shell.on('data', (data: Buffer) => {
-        mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: data.toString(),
-          type: 'stdout',
-          timestamp: new Date()
-        });
+        outputBuffer += data.toString();
+        
+        // Clear existing timeout
+        if (bufferTimeout) {
+          clearTimeout(bufferTimeout);
+        }
+        
+        // Set new timeout to send buffered data
+        bufferTimeout = setTimeout(() => {
+          sendBufferedOutput();
+          bufferTimeout = null;
+        }, 10); // Send after 10ms of no new data
       });
 
       shell.stderr.on('data', (data: Buffer) => {
@@ -226,7 +252,7 @@ ipcMain.handle('ssh-send-input', async (event, connectionId, input) => {
   if (!connection || !connection.isConnected || !connection.shell) return;
 
   try {
-    // Send input as-is without modification
+    // Send input directly to shell without any buffering
     connection.shell.write(input);
     
     // Update last activity

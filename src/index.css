@@ -398,3 +398,137 @@ input:focus, textarea:focus, button:focus {
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2) !important;
 }
 
+/* Remove web-like appearance and improve native feel */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.xterm-screen,
+.xterm-viewport,
+textarea,
+input[type="text"],
+input[type="password"],
+input[type="number"],
+.selectable-text {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Native window dragging */
+.titlebar,
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.titlebar button,
+.drag-region button,
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Performance optimizations */
+body {
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+/* Hardware acceleration for animations */
+.animate-fade-in,
+.motion-safe\:animate-*,
+.transition-transform {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Optimize terminal rendering */
+.xterm {
+  will-change: contents;
+}
+
+.xterm-screen {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Fast transitions */
+button,
+a,
+.tab,
+.menu-item {
+  transition-duration: 100ms !important;
+}
+
+/* No transitions for terminal */
+.xterm,
+.xterm * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Better native scrollbars */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Light mode scrollbars */
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  background-clip: content-box;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+  background-clip: content-box;
+}
+
+/* Remove focus rings for mouse users */
+:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Native context menus */
+.context-menu {
+  backdrop-filter: blur(20px);
+  background: rgba(var(--background), 0.95);
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

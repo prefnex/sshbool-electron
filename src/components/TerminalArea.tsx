@@ -54,12 +54,27 @@ const TerminalArea: React.FC = () => {
       return
     }
     
-    // Use the first available connection
-    const connection = connections[0]
+    // Get the active terminal's connection or use the first available
+    let connectionToUse = connections[0]
+    
+    if (activeTerminalId) {
+      const activeTerminal = terminals.find(t => t.id === activeTerminalId)
+      if (activeTerminal) {
+        const activeConnection = connections.find(c => c.id === activeTerminal.connectionId)
+        if (activeConnection) {
+          connectionToUse = activeConnection
+        }
+      }
+    }
+    
+    // Create new terminal with the same connection
+    const terminalCount = terminals.filter(t => t.connectionId === connectionToUse.id).length
     addTerminal({
-      connectionId: connection.id,
-      title: `${connection.name} - ${connection.host}`,
+      connectionId: connectionToUse.id,
+      title: `${connectionToUse.name} - ${connectionToUse.host} (${terminalCount + 1})`,
     })
+    
+    toast.success(`New terminal opened for ${connectionToUse.name}`)
   }
 
   const handleCloseTerminal = (terminalId: string) => {
@@ -379,9 +394,9 @@ const TerminalArea: React.FC = () => {
             {maximizedTerminal && (
               <span className="text-yellow-400 font-medium">📺 Fullscreen</span>
             )}
-                                  </div>
+          </div>
             
-            <div className="flex items-center gap-4 text-muted-foreground">
+          <div className="flex items-center gap-4 text-muted-foreground">
               <span>🔗 {connections.length} Connections</span>
               <span>🖥️ {terminals.length} Terminals</span>
               <span className="text-primary font-medium">
@@ -390,6 +405,22 @@ const TerminalArea: React.FC = () => {
             </div>
         </div>
       )}
+      
+      {/* SFTP Manager Modal */}
+      {showSftpManager && activeTerminalId && (() => {
+        const activeTerminal = terminals.find(t => t.id === activeTerminalId)
+        if (!activeTerminal) return null
+        
+        const SftpManager = require('./SftpManager').default
+        
+        return (
+          <SftpManager
+            connectionId={activeTerminal.connectionId}
+            isOpen={showSftpManager}
+            onClose={() => setShowSftpManager(false)}
+          />
+        )
+      })()}
     </div>
   )
 }

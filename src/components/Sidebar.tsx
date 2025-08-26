@@ -23,7 +23,7 @@ import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
 import ConnectionModal from './ConnectionModal'
-import SettingsModal from './SettingsModal'
+import EnhancedSettingsModal from './EnhancedSettingsModal'
 import FileManager from './FileManager'
 import CommandHistory from './CommandHistory'
 import Documentation from './Documentation'
@@ -460,7 +460,10 @@ const Sidebar: React.FC = () => {
         editConnection={editingConnection}
       />
 
-      <SettingsModal />
+      <EnhancedSettingsModal 
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
 
       <FileManager />
 

@@ -70,16 +70,18 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     const xterm = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
-      fontSize: 15,
+      fontSize: 14,
       fontFamily: 'JetBrains Mono, Fira Code, Consolas, "Courier New", monospace',
-      fontWeight: 500,
+      fontWeight: 400,
       theme: currentTheme.colors,
       allowTransparency: false,
       convertEol: true,
-      scrollback: 5000,
+      scrollback: 10000,
       tabStopWidth: 4,
       rows: 30,
-      cols: 100
+      cols: 120,
+      rendererType: 'canvas',
+      allowProposedApi: true
     })
 
     // Add addons
@@ -100,9 +102,13 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     xterm.open(terminalRef.current)
     fitAddon.fit()
 
-    // Welcome message
-    xterm.writeln('🚀 \x1b[1;34mFlyTerm - Modern SSH Terminal\x1b[0m')
-    xterm.writeln(`📡 Connecting to \x1b[1;32m${connection.username}@${connection.host}:${connection.port}\x1b[0m`)
+    // Clear terminal first
+    xterm.clear()
+    
+    // Show connection info
+    xterm.writeln('\x1b[1;34mFlyTerm SSH Terminal\x1b[0m')
+    xterm.writeln(`Connecting to \x1b[1;32m${connection.username}@${connection.host}:${connection.port}\x1b[0m`)
+    xterm.writeln('Please wait...')
     xterm.writeln('')
 
     // Auto-copy on selection
@@ -156,13 +162,21 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       }
     })
 
-    // Handle input - simplified for better SSH compatibility
+    // Handle input - prevent duplicate input
+    let isProcessingInput = false
+    
     xterm.onData((data) => {
-      if (!isConnected) return
-
-      // For interactive SSH, just pass all input directly to the server
-      // The server will handle echo, command processing, etc.
-      sshService.sendInput(connection.id, data)
+      if (!isConnected || isProcessingInput) return
+      
+      // Prevent duplicate input processing
+      isProcessingInput = true
+      
+      // Send input to server
+      sshService.sendInput(connection.id, data).then(() => {
+        isProcessingInput = false
+      }).catch(() => {
+        isProcessingInput = false
+      })
       
       updateTerminalActivity(terminalId)
     })
@@ -273,20 +287,28 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       setTerminalUnread(terminalId, true)
     }
 
-    // Write output to terminal with appropriate styling
-    switch (output.type) {
-      case 'stdout':
-        xtermRef.current.write(output.data)
-        break
-      case 'stderr':
-        xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
-        break
-      case 'info':
-        xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`) // Blue for info
-        break
-      case 'error':
-        xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
-        break
+    // Write output to terminal
+    try {
+      switch (output.type) {
+        case 'stdout':
+          // Write stdout directly without modification
+          xtermRef.current.write(output.data)
+          break
+        case 'stderr':
+          // Write stderr in red
+          xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`)
+          break
+        case 'info':
+          // Write info in blue
+          xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`)
+          break
+        case 'error':
+          // Write errors in red
+          xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`)
+          break
+      }
+    } catch (error) {
+      console.error('Error writing to terminal:', error)
     }
   }
 
