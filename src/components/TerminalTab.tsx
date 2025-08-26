@@ -55,6 +55,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const terminal = terminals.find(t => t.id === terminalId)
   const connection = terminal ? connections.find(c => c.id === terminal.connectionId) : null
 
+  // Initialize terminal once on mount or when terminalId changes
   useEffect(() => {
     if (!terminalRef.current || !terminal || !connection) return
 
@@ -220,7 +221,7 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
         sshService.disconnect(connection.id)
       }
     }
-  }, [terminal, connection])
+  }, [terminalId])
 
   // Handle window resize
   useEffect(() => {

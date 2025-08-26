@@ -24,9 +24,13 @@ interface ConnectionFormData {
   color: string
 }
 
-const ConnectionModal: React.FC = () => {
+interface ConnectionModalProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose }) => {
   const { addConnection } = useTerminalStore()
-  const [isOpen, setIsOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState<ConnectionFormData>({
     name: '',
@@ -112,7 +116,7 @@ const ConnectionModal: React.FC = () => {
       await connectionStorage.addConnection(connectionWithId)
 
       toast.success('Connection added successfully!')
-      handleClose()
+      onClose()
     } catch (error) {
       toast.error('Failed to add connection')
       console.error('Error adding connection:', error)
@@ -120,7 +124,7 @@ const ConnectionModal: React.FC = () => {
   }
 
   const handleClose = () => {
-    setIsOpen(false)
+    onClose()
     setFormData({
       name: '',
       host: '',
@@ -142,17 +146,7 @@ const ConnectionModal: React.FC = () => {
   }
 
   return (
-    <>
-      <Button
-        onClick={() => setIsOpen(true)}
-        variant="gradient"
-        size="sm"
-      >
-        <Server className="w-4 h-4 mr-2" />
-        New Connection
-      </Button>
-
-      <AnimatePresence>
+    <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -380,8 +374,7 @@ const ConnectionModal: React.FC = () => {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
-    </>
+    </AnimatePresence>
   )
 }
 
