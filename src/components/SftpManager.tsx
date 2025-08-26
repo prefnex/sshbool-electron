@@ -418,8 +418,9 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
           </div>
 
           {/* File List */}
-          <div className="flex-1 overflow-auto">
-            <div className="grid gap-1">
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full overflow-y-auto max-h-[60vh] pr-2">
+              <div className="grid gap-1">
               {loading ? (
                 <div className="flex items-center justify-center p-8">
                   <RefreshCw className="w-6 h-6 animate-spin mr-2" />
@@ -515,6 +516,7 @@ const SftpManager: React.FC<SftpManagerProps> = ({ connectionId, isOpen, onClose
                   </motion.div>
                 ))
               )}
+              </div>
             </div>
           </div>
 

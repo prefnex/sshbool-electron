@@ -97,73 +97,135 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false;
 });
 
+// Connection health monitoring
+const connectionHealthCheck = setInterval(() => {
+  for (const [connectionId, connection] of sshConnections.entries()) {
+    if (connection.isConnected) {
+      const timeSinceLastActivity = Date.now() - connection.lastActivity.getTime();
+      
+      // If no activity for 60 seconds, send a keep-alive
+      if (timeSinceLastActivity > 60000) {
+        try {
+          if (connection.shell) {
+            connection.shell.write('\0'); // Send null byte as keep-alive
+          }
+          connection.lastActivity = new Date();
+        } catch (error) {
+          console.error(`Keep-alive failed for connection ${connectionId}:`, error);
+          // Connection is likely dead, mark as disconnected
+          connection.isConnected = false;
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: `⚠️  Connection lost. Attempting to reconnect...\r\n`,
+            type: 'error',
+            timestamp: new Date()
+          });
+        }
+      }
+    }
+  }
+}, 30000); // Check every 30 seconds
+
 // SSH IPC Handlers
 ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
   return new Promise((resolve, reject) => {
     const client = new Client();
     const connectionId = connectionConfig.id;
+    let connectionAttempts = 0;
+    const maxRetries = 3;
 
-    client.on('ready', () => {
-      const sshConnection: SSHConnection = {
-        id: connectionId,
-        client,
-        shell: null,
-        isConnected: true,
-        lastActivity: new Date()
+    const attemptConnection = () => {
+      connectionAttempts++;
+      
+      client.on('ready', () => {
+        const sshConnection: SSHConnection = {
+          id: connectionId,
+          client,
+          shell: null,
+          isConnected: true,
+          lastActivity: new Date()
+        };
+
+        sshConnections.set(connectionId, sshConnection);
+
+        // Send welcome message
+        mainWindow.webContents.send('ssh-output', {
+          connectionId,
+          data: `✅ Connected to ${connectionConfig.host} as ${connectionConfig.username}\r\n`,
+          type: 'info',
+          timestamp: new Date()
+        });
+
+        resolve(true);
+      });
+
+      client.on('error', (err) => {
+        mainWindow.webContents.send('ssh-output', {
+          connectionId,
+          data: `❌ Connection failed: ${err.message}\r\n`,
+          type: 'error',
+          timestamp: new Date()
+        });
+        
+        // Retry connection if it's a recoverable error
+        if (connectionAttempts < maxRetries && (err.message.includes('ECONNREFUSED') || err.message.includes('timeout'))) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: `🔄 Retrying connection (${connectionAttempts}/${maxRetries})...\r\n`,
+            type: 'info',
+            timestamp: new Date()
+          });
+          setTimeout(attemptConnection, 2000);
+        } else {
+          reject(err);
+        }
+      });
+
+      client.on('close', (hadError) => {
+        const connection = sshConnections.get(connectionId);
+        if (connection) {
+          connection.isConnected = false;
+          sshConnections.set(connectionId, connection);
+        }
+        
+        mainWindow.webContents.send('ssh-output', {
+          connectionId,
+          data: `🔌 Connection to ${connectionConfig.host} closed${hadError ? ' due to error' : ''}\r\n`,
+          type: 'info',
+          timestamp: new Date()
+        });
+      });
+
+      // Connect with improved configuration
+      const connectConfig: any = {
+        host: connectionConfig.host,
+        port: connectionConfig.port,
+        username: connectionConfig.username,
+        readyTimeout: 30000,
+        keepaliveInterval: 10000, // More frequent keep-alive
+        keepaliveCountMax: 3,
+        algorithms: {
+          // Add more robust algorithms for better compatibility
+          kex: ['ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521', 'diffie-hellman-group14-sha256'],
+          cipher: ['aes128-ctr', 'aes192-ctr', 'aes256-ctr', 'aes128-gcm', 'aes256-gcm'],
+          serverHostKey: ['rsa-sha2-512', 'rsa-sha2-256', 'ssh-rsa', 'ecdsa-sha2-nistp256', 'ssh-ed25519'],
+          hmac: ['hmac-sha2-256', 'hmac-sha2-512', 'hmac-sha1']
+        }
       };
 
-      sshConnections.set(connectionId, sshConnection);
+      if (connectionConfig.connectionType === 'password' && connectionConfig.password) {
+        connectConfig.password = connectionConfig.password;
+      } else if (connectionConfig.connectionType === 'privateKey' && connectionConfig.privateKey) {
+        connectConfig.privateKey = connectionConfig.privateKey;
+      } else {
+        reject(new Error('No authentication method provided'));
+        return;
+      }
 
-      // Send welcome message
-      mainWindow.webContents.send('ssh-output', {
-        connectionId,
-        data: `✅ Connected to ${connectionConfig.host} as ${connectionConfig.username}\r\n`,
-        type: 'info',
-        timestamp: new Date()
-      });
-
-      resolve(true);
-    });
-
-    client.on('error', (err) => {
-      mainWindow.webContents.send('ssh-output', {
-        connectionId,
-        data: `❌ Connection failed: ${err.message}\r\n`,
-        type: 'error',
-        timestamp: new Date()
-      });
-      reject(err);
-    });
-
-    client.on('close', () => {
-      sshConnections.delete(connectionId);
-      mainWindow.webContents.send('ssh-output', {
-        connectionId,
-        data: `🔌 Connection to ${connectionConfig.host} closed\r\n`,
-        type: 'info',
-        timestamp: new Date()
-      });
-    });
-
-    // Connect with proper configuration
-    const connectConfig: any = {
-      host: connectionConfig.host,
-      port: connectionConfig.port,
-      username: connectionConfig.username,
-      readyTimeout: 30000,
-      keepaliveInterval: 30000,
+      client.connect(connectConfig);
     };
 
-    if (connectionConfig.connectionType === 'password' && connectionConfig.password) {
-      connectConfig.password = connectionConfig.password;
-    } else if (connectionConfig.connectionType === 'privateKey' && connectionConfig.privateKey) {
-      connectConfig.privateKey = connectionConfig.privateKey;
-    } else {
-      reject(new Error('No authentication method provided'));
-      return;
-    }
-
-    client.connect(connectConfig);
+    attemptConnection();
   });
 });
 
@@ -206,6 +268,9 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
 
       shell.on('data', (data: Buffer) => {
         const newData = data.toString();
+        
+        // Update last activity
+        connection.lastActivity = new Date();
         
         // Clear existing timer
         if (outputTimer) {

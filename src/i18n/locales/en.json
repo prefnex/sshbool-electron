@@ -24,7 +24,10 @@
     "download": "Download",
     "refresh": "Refresh",
     "back": "Back",
-    "forward": "Forward"
+    "forward": "Forward",
+    "lock": "Lock App",
+    "logout": "Logout",
+    "openSettings": "Open Settings"
   },
   "app": {
     "title": "FlyTerm",

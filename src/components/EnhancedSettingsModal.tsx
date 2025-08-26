@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { useTheme } from '../contexts/ThemeContext'
+import { useI18n } from '../contexts/I18nContext'
 import { cn } from '../lib/utils'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -57,6 +58,7 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
   } = useTerminalStore()
 
   const { theme, setTheme } = useTheme()
+  const { language, setLanguage } = useI18n()
 
   // Local settings state
   const [settings, setSettings] = useState({
@@ -231,20 +233,20 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                     <Settings className="w-5 h-5 text-primary-foreground" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">إعدادات FlyTerm</CardTitle>
-                    <CardDescription>تخصيص تجربة Terminal الخاصة بك</CardDescription>
+                    <CardTitle className="text-xl">FlyTerm Settings</CardTitle>
+                    <CardDescription>Customize your terminal experience</CardDescription>
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={exportSettings}>
                     <Download className="w-4 h-4 mr-1" />
-                    تصدير
+                    Export
                   </Button>
                   
                   <Button variant="outline" size="sm" onClick={importSettings}>
                     <Upload className="w-4 h-4 mr-1" />
-                    استيراد
+                    Import
                   </Button>
                   
                   <Button variant="ghost" size="icon" onClick={onClose}>
@@ -259,7 +261,7 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                 <TabsList className="grid w-full grid-cols-6 p-1 bg-muted/30">
                   <TabsTrigger value="appearance" className="flex items-center gap-2">
                     <Palette className="w-4 h-4" />
-                    المظهر
+                    Appearance
                   </TabsTrigger>
                   <TabsTrigger value="terminal" className="flex items-center gap-2">
                     <Terminal className="w-4 h-4" />
@@ -267,19 +269,19 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                   </TabsTrigger>
                   <TabsTrigger value="language" className="flex items-center gap-2">
                     <Globe className="w-4 h-4" />
-                    اللغة
+                    Language
                   </TabsTrigger>
                   <TabsTrigger value="audio" className="flex items-center gap-2">
                     <Volume2 className="w-4 h-4" />
-                    الصوت
+                    Audio
                   </TabsTrigger>
                   <TabsTrigger value="security" className="flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    الأمان
+                    Security
                   </TabsTrigger>
                   <TabsTrigger value="advanced" className="flex items-center gap-2">
                     <Code className="w-4 h-4" />
-                    متقدم
+                    Advanced
                   </TabsTrigger>
                 </TabsList>
 
@@ -458,8 +460,8 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="text-lg font-medium">إعدادات اللغة</h3>
-                          <p className="text-sm text-muted-foreground">اختر لغة واجهة التطبيق</p>
+                          <h3 className="text-lg font-medium">Language Settings</h3>
+                          <p className="text-sm text-muted-foreground">Choose your interface language</p>
                         </div>
                       </div>
                       
@@ -467,59 +469,55 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                       
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>لغة الواجهة</Label>
-                          <Select defaultValue="ar">
+                          <Label>Interface Language</Label>
+                          <Select value={language} onValueChange={setLanguage}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ar">العربية (Arabic)</SelectItem>
-                              <SelectItem value="en">English</SelectItem>
-                              <SelectItem value="es">Español</SelectItem>
-                              <SelectItem value="fr">Français</SelectItem>
-                              <SelectItem value="de">Deutsch</SelectItem>
-                              <SelectItem value="zh">中文</SelectItem>
-                              <SelectItem value="ja">日本語</SelectItem>
-                              <SelectItem value="ru">Русский</SelectItem>
+                              <SelectItem value="en">🇺🇸 English</SelectItem>
+                              <SelectItem value="ar">🇸🇦 العربية (Arabic)</SelectItem>
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground">
-                            تغيير اللغة يتطلب إعادة تشغيل التطبيق
+                            Language changes take effect immediately
                           </p>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>اتجاه النص</Label>
-                          <Select defaultValue="rtl">
+                          <Label>Text Direction</Label>
+                          <Select value={language === 'ar' ? 'rtl' : 'ltr'} disabled>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="rtl">من اليمين إلى اليسار (RTL)</SelectItem>
-                              <SelectItem value="ltr">من اليسار إلى اليمين (LTR)</SelectItem>
-                              <SelectItem value="auto">تلقائي حسب اللغة</SelectItem>
+                              <SelectItem value="ltr">Left to Right (LTR)</SelectItem>
+                              <SelectItem value="rtl">Right to Left (RTL)</SelectItem>
                             </SelectContent>
                           </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Text direction is automatically determined by language
+                          </p>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>تنسيق التاريخ والوقت</Label>
-                          <Select defaultValue="arabic">
+                          <Label>Date & Time Format</Label>
+                          <Select defaultValue="gregorian">
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="arabic">عربي (١٤٤٥/١٢/١٥)</SelectItem>
-                              <SelectItem value="gregorian">ميلادي (2024/01/15)</SelectItem>
-                              <SelectItem value="mixed">مختلط</SelectItem>
+                              <SelectItem value="gregorian">Gregorian (2024/01/15)</SelectItem>
+                              <SelectItem value="arabic">Arabic (١٤٤٥/١٢/١٥)</SelectItem>
+                              <SelectItem value="iso">ISO (2024-01-15)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         
                         <div className="flex items-center justify-between">
                           <div>
-                            <Label>تبديل اللغة السريع</Label>
-                            <p className="text-xs text-muted-foreground">تفعيل تبديل اللغة باستخدام Alt+Shift</p>
+                            <Label>Quick Language Switch</Label>
+                            <p className="text-xs text-muted-foreground">Enable language switching with Alt+Shift</p>
                           </div>
                           <Switch defaultChecked />
                         </div>
