@@ -23,7 +23,6 @@ import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
 import ConnectionModal from './ConnectionModal'
-import SettingsModal from './SettingsModal'
 import FileManager from './FileManager'
 import CommandHistory from './CommandHistory'
 import Documentation from './Documentation'
@@ -41,7 +40,6 @@ const Sidebar: React.FC = () => {
   
   const [showConnectionModal, setShowConnectionModal] = useState(false)
   const [editingConnection, setEditingConnection] = useState<any>(null)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showFileManager, setShowFileManager] = useState(false)
   const [showCommandHistory, setShowCommandHistory] = useState(false)
   const [showDocumentation, setShowDocumentation] = useState(false)
@@ -422,7 +420,10 @@ const Sidebar: React.FC = () => {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setShowSettingsModal(true)}
+                    onClick={() => {
+                      // Trigger the main app settings modal
+                      window.dispatchEvent(new CustomEvent('openSettings'))
+                    }}
                     className="w-full justify-start hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     <Settings className="w-4 h-4 mr-3" />
@@ -482,10 +483,7 @@ const Sidebar: React.FC = () => {
         editConnection={editingConnection}
       />
 
-      <SettingsModal 
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-      />
+
 
       <FileManager 
         isOpen={showFileManager}

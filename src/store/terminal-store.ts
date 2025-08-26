@@ -24,10 +24,21 @@ export interface Terminal {
   lastActivity: Date
 }
 
+export interface SftpTab {
+  id: string
+  connectionId: string
+  title: string
+  currentPath: string
+  isActive: boolean
+  lastActivity: Date
+}
+
 export interface TerminalState {
   connections: Connection[]
   terminals: Terminal[]
+  sftpTabs: SftpTab[]
   activeTerminalId: string | null
+  activeSftpId: string | null
   sidebarCollapsed: boolean
   theme: 'light' | 'dark' | 'system'
   terminalTheme: string
@@ -49,6 +60,11 @@ export interface TerminalState {
   updateTerminalActivity: (id: string) => void
   setTerminalUnread: (id: string, hasUnread: boolean) => void
   
+  addSftpTab: (sftpTab: Omit<SftpTab, 'id' | 'isActive' | 'lastActivity'>) => void
+  removeSftpTab: (id: string) => void
+  setActiveSftp: (id: string) => void
+  updateSftpPath: (id: string, path: string) => void
+  
   toggleSidebar: () => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
   setTerminalTheme: (themeId: string) => void
@@ -67,7 +83,9 @@ export const useTerminalStore = create<TerminalState>()(
     (set, get) => ({
       connections: defaultConnections,
       terminals: [],
+      sftpTabs: [],
       activeTerminalId: null,
+      activeSftpId: null,
       sidebarCollapsed: false,
       theme: 'dark',
       terminalTheme: 'flyterm-pro',
@@ -75,7 +93,7 @@ export const useTerminalStore = create<TerminalState>()(
       fontFamily: 'JetBrains Mono',
       showLineNumbers: true,
       showStatusBar: true,
-      language: 'ar',
+      language: 'en',
 
       addConnection: (connection) => set((state) => {
         // Check for duplicates based on host, port, and username
@@ -112,7 +130,8 @@ export const useTerminalStore = create<TerminalState>()(
 
       deleteConnection: (id) => set((state) => ({
         connections: state.connections.filter(conn => conn.id !== id),
-        terminals: state.terminals.filter(term => term.connectionId !== id)
+        terminals: state.terminals.filter(term => term.connectionId !== id),
+        sftpTabs: state.sftpTabs.filter(sftp => sftp.connectionId !== id)
       })),
 
       setConnectionStatus: (id, isConnected) => set((state) => ({
@@ -181,6 +200,48 @@ export const useTerminalStore = create<TerminalState>()(
       setFontFamily: (fontFamily) => set({ fontFamily }),
       toggleLineNumbers: () => set((state) => ({ showLineNumbers: !state.showLineNumbers })),
       toggleStatusBar: () => set((state) => ({ showStatusBar: !state.showStatusBar })),
+      
+      addSftpTab: (sftpTab) => set((state) => {
+        const newSftpTab: SftpTab = {
+          ...sftpTab,
+          id: `sftp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          isActive: false,
+          lastActivity: new Date()
+        }
+        
+        return {
+          sftpTabs: [...state.sftpTabs, newSftpTab],
+          activeSftpId: newSftpTab.id
+        }
+      }),
+
+      removeSftpTab: (id) => set((state) => {
+        const newSftpTabs = state.sftpTabs.filter(sftp => sftp.id !== id)
+        let newActiveSftpId = state.activeSftpId
+        
+        if (state.activeSftpId === id) {
+          newActiveSftpId = newSftpTabs.length > 0 ? newSftpTabs[0].id : null
+        }
+        
+        return {
+          sftpTabs: newSftpTabs,
+          activeSftpId: newActiveSftpId
+        }
+      }),
+
+      setActiveSftp: (id) => set((state) => ({
+        sftpTabs: state.sftpTabs.map(sftp => ({
+          ...sftp,
+          isActive: sftp.id === id
+        })),
+        activeSftpId: id
+      })),
+
+      updateSftpPath: (id, path) => set((state) => ({
+        sftpTabs: state.sftpTabs.map(sftp =>
+          sftp.id === id ? { ...sftp, currentPath: path, lastActivity: new Date() } : sftp
+        )
+      })),
       
       cleanupDuplicateConnections: () => set((state) => {
         const seen = new Set<string>()

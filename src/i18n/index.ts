@@ -13,7 +13,7 @@ export const translations = {
   ar
 }
 
-export const defaultLanguage: Language = 'ar' // Default to Arabic as requested
+export const defaultLanguage: Language = 'en' // Default to English for better compatibility
 
 export type TranslationKey = keyof typeof en
 

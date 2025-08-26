@@ -12,7 +12,8 @@ import {
   Zap,
   Copy,
   RotateCcw,
-  Palette
+  Palette,
+  FolderOpen
 } from 'lucide-react'
 import { useTerminalStore } from '../store/terminal-store'
 import { cn } from '../lib/utils'
@@ -22,6 +23,7 @@ import { Separator } from './ui/separator'
 import { Card, CardContent } from './ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
 import TerminalTab from './TerminalTab'
+import SftpTab from './SftpTab'
 import WelcomeScreen from './WelcomeScreen'
 import toast from 'react-hot-toast'
 
@@ -32,12 +34,18 @@ const TerminalArea: React.FC = () => {
     setActiveTerminal, 
     addTerminal, 
     removeTerminal,
-    connections 
+    connections,
+    sftpTabs,
+    activeSftpId,
+    addSftpTab,
+    removeSftpTab,
+    setActiveSftp
   } = useTerminalStore()
   
   const [layout, setLayout] = useState<'single' | 'split' | 'grid'>('single')
   const [maximizedTerminal, setMaximizedTerminal] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
+  const [activeTabType, setActiveTabType] = useState<'terminal' | 'sftp'>('terminal')
 
   // Update clock every second
   useEffect(() => {
@@ -50,7 +58,7 @@ const TerminalArea: React.FC = () => {
 
   const handleNewTerminal = () => {
     if (connections.length === 0) {
-      toast.error('يرجى إنشاء اتصال أولاً قبل فتح تيرمينال جديد', {
+      toast.error('Please create a connection first before opening a new terminal', {
         duration: 3000,
         style: {
           background: 'hsl(var(--destructive))',
@@ -70,7 +78,7 @@ const TerminalArea: React.FC = () => {
         title: `${connection.name} - ${connection.host}`,
       })
       
-      toast.success(`تم إنشاء تيرمينال جديد للاتصال: ${connection.name}`, {
+      toast.success(`New terminal created for connection: ${connection.name}`, {
         duration: 2000,
         style: {
           background: 'hsl(var(--card))',
@@ -80,7 +88,7 @@ const TerminalArea: React.FC = () => {
       })
     } catch (error) {
       console.error('Failed to create new terminal:', error)
-      toast.error('فشل في إنشاء تيرمينال جديد')
+      toast.error('Failed to create new terminal')
     }
   }
 
@@ -116,8 +124,27 @@ const TerminalArea: React.FC = () => {
   }
 
   const renderTerminals = () => {
-    if (terminals.length === 0) {
+    // Show SFTP tab if one is active
+    if (activeTabType === 'sftp' && sftpTabs.length > 0) {
+      const activeSftp = sftpTabs.find(s => s.id === activeSftpId) || sftpTabs[0]
+      return (
+        <SftpTab
+          key={activeSftp.id}
+          sftpId={activeSftp.id}
+          isActive={true}
+          onClose={() => removeSftpTab(activeSftp.id)}
+        />
+      )
+    }
+
+    if (terminals.length === 0 && sftpTabs.length === 0) {
       return <WelcomeScreen onNewTerminal={handleNewTerminal} />
+    }
+
+    if (terminals.length === 0 && sftpTabs.length > 0) {
+      // Switch to SFTP view if no terminals but SFTP tabs exist
+      setActiveTabType('sftp')
+      return null
     }
 
     if (maximizedTerminal) {
@@ -253,14 +280,14 @@ const TerminalArea: React.FC = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem 
-                  onClick={handleNewTerminal}
-                  disabled={connections.length === 0}
-                  className={connections.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
-                >
-                  <Plus className="w-3 h-3 mr-2" />
-                  تيرمينال جديد
-                </DropdownMenuItem>
+                                  <DropdownMenuItem
+                    onClick={handleNewTerminal}
+                    disabled={connections.length === 0}
+                    className={connections.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+                  >
+                    <Plus className="w-3 h-3 mr-2" />
+                    New Terminal
+                  </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setLayout('single')}>
                   Single Layout
@@ -281,6 +308,34 @@ const TerminalArea: React.FC = () => {
             </DropdownMenu>
 
             <div className="flex items-center gap-2">
+              {/* SFTP Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (connections.length === 0) {
+                    toast.error('Please create a connection first', {
+                      duration: 3000
+                    })
+                    return
+                  }
+                  const connection = connections[0]
+                  addSftpTab({
+                    connectionId: connection.id,
+                    title: `SFTP - ${connection.name}`,
+                    currentPath: '/'
+                  })
+                  setActiveTabType('sftp')
+                  toast.success(`📁 SFTP tab opened for ${connection.name}`)
+                }}
+                className="h-7 px-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border-blue-500/30"
+                title="Open SFTP Manager"
+                disabled={connections.length === 0}
+              >
+                <FolderOpen className="w-3 h-3 mr-1" />
+                SFTP
+              </Button>
+
               {/* Quick Actions */}
               <Button
                 variant="outline"
@@ -331,22 +386,23 @@ const TerminalArea: React.FC = () => {
                 size="sm"
                 className="h-7 px-3 btn-gradient hover:scale-105 transition-transform"
                 disabled={connections.length === 0}
-                title={connections.length === 0 ? 'يرجى إنشاء اتصال أولاً' : 'إنشاء تيرمينال جديد'}
+                title={connections.length === 0 ? 'Please create a connection first' : 'Create new terminal'}
               >
                 <Plus className="w-3 h-3 mr-1" />
-                تيرمينال جديد
+                New Terminal
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Terminal Tabs */}
-      {terminals.length > 0 && !maximizedTerminal && (
+      {/* Terminal and SFTP Tabs */}
+      {(terminals.length > 0 || sftpTabs.length > 0) && !maximizedTerminal && (
         <div className="flex items-center gap-1 p-2 bg-muted/20 border-b border-border overflow-x-auto">
+          {/* Terminal Tabs */}
           {terminals.map((terminal) => {
             const connection = connections.find(c => c.id === terminal.connectionId)
-            const isActive = activeTerminalId === terminal.id
+            const isActive = activeTerminalId === terminal.id && activeTabType === 'terminal'
             
             return (
               <motion.div
@@ -356,24 +412,129 @@ const TerminalArea: React.FC = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className="flex-shrink-0"
               >
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={isActive ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => {
+                        setActiveTabType('terminal')
+                        handleTerminalClick(terminal.id)
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                      className={cn(
+                        "h-8 px-3 text-xs font-medium",
+                        isActive && "bg-secondary text-secondary-foreground"
+                      )}
+                    >
+                      <Terminal className="w-3 h-3 mr-1" />
+                      {terminal.title || `Terminal ${terminal.id.slice(-4)}`}
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleCloseTerminal(terminal.id)
+                        }}
+                        className="ml-2 h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (connection) {
+                          toast.success(`🌐 Opening SSH session for ${connection.name}`)
+                        }
+                      }}
+                    >
+                      <Terminal className="w-4 h-4 mr-2" />
+                      New SSH Session
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (connection) {
+                          toast.success(`📁 Opening SFTP for ${connection.name}`)
+                        }
+                      }}
+                    >
+                      <FolderOpen className="w-4 h-4 mr-2" />
+                      Open SFTP
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleMaximizeTerminal(terminal.id)}
+                    >
+                      <Maximize2 className="w-4 h-4 mr-2" />
+                      {maximizedTerminal === terminal.id ? 'Exit Fullscreen' : 'Fullscreen'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const termElement = document.querySelector(`[data-terminal-id="${terminal.id}"] .xterm`)
+                        if (termElement) {
+                          const xterm = (termElement as any)._xterm
+                          if (xterm) xterm.clear()
+                          toast.success('🧹 Terminal cleared!')
+                        }
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Clear Terminal
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleCloseTerminal(terminal.id)}
+                      className="text-destructive"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Close Terminal
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </motion.div>
+            )
+          })}
+
+          {/* SFTP Tabs */}
+          {sftpTabs.map((sftpTab) => {
+            const connection = connections.find(c => c.id === sftpTab.connectionId)
+            const isActive = activeSftpId === sftpTab.id && activeTabType === 'sftp'
+            
+            return (
+              <motion.div
+                key={sftpTab.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="flex-shrink-0"
+              >
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   size="sm"
-                  onClick={() => handleTerminalClick(terminal.id)}
+                  onClick={() => {
+                    setActiveTabType('sftp')
+                    setActiveSftp(sftpTab.id)
+                  }}
                   className={cn(
                     "h-8 px-3 text-xs font-medium",
                     isActive && "bg-secondary text-secondary-foreground"
                   )}
                 >
-                  <Terminal className="w-3 h-3 mr-1" />
-                  {terminal.title || `Terminal ${terminal.id.slice(-4)}`}
+                  <FolderOpen className="w-3 h-3 mr-1" />
+                  {sftpTab.title || `SFTP ${sftpTab.id.slice(-4)}`}
                   
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleCloseTerminal(terminal.id)
+                      removeSftpTab(sftpTab.id)
                     }}
                     className="ml-2 h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
                   >
@@ -396,28 +557,34 @@ const TerminalArea: React.FC = () => {
       </div>
 
       {/* Enhanced Status Bar */}
-      {terminals.length > 0 && (
+      {(terminals.length > 0 || sftpTabs.length > 0) && (
         <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-muted/20 to-muted/10 border-t border-border text-xs">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-green-400 font-medium">
-                {getActiveTerminal()?.title || 'No Active Terminal'}
+                {activeTabType === 'terminal' 
+                  ? (getActiveTerminal()?.title || 'No Active Terminal')
+                  : (sftpTabs.find(s => s.id === activeSftpId)?.title || 'SFTP Manager')}
               </span>
             </div>
             <span className="text-muted-foreground">Layout: {layout}</span>
             {maximizedTerminal && (
               <span className="text-yellow-400 font-medium">📺 Fullscreen</span>
             )}
-                                  </div>
+            <span className="text-muted-foreground">
+              Mode: {activeTabType === 'terminal' ? '🖥️ Terminal' : '📁 SFTP'}
+            </span>
+          </div>
             
-            <div className="flex items-center gap-4 text-muted-foreground">
-              <span>🔗 {connections.length} Connections</span>
-              <span>🖥️ {terminals.length} Terminals</span>
-              <span className="text-primary font-medium">
-                {currentTime}
-              </span>
-            </div>
+          <div className="flex items-center gap-4 text-muted-foreground">
+            <span>🔗 {connections.length} Connections</span>
+            <span>🖥️ {terminals.length} Terminals</span>
+            <span>📁 {sftpTabs.length} SFTP</span>
+            <span className="text-primary font-medium">
+              {currentTime}
+            </span>
+          </div>
         </div>
       )}
     </div>

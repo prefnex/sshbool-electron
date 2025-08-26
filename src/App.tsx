@@ -60,12 +60,22 @@ const AppContent: React.FC = () => {
       window.electron.onMaximizeChange(setIsMaximized)
     }
 
+    // Listen for settings modal events from sidebar
+    const handleOpenSettings = () => {
+      setShowSettings(true)
+    }
+
+    window.addEventListener('openSettings', handleOpenSettings)
+
     // Hide loading screen after a short delay to ensure everything is ready
     const timer = setTimeout(() => {
       setIsLoading(false)
     }, 1000)
 
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('openSettings', handleOpenSettings)
+    }
   }, [])
 
   // Keyboard shortcuts
@@ -174,7 +184,6 @@ const AppContent: React.FC = () => {
 
           {/* Window Controls */}
           <div className="flex items-center gap-1">
-            <LanguageSelector />
             <ThemeSwitcher />
             
             {/* User Menu */}
@@ -192,11 +201,11 @@ const AppContent: React.FC = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={lock} className="cursor-pointer">
                     <Lock className="w-4 h-4 mr-2" />
-                    قفل التطبيق
+                    {t('common.lock')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={logout} className="text-destructive cursor-pointer">
                     <LogOut className="w-4 h-4 mr-2" />
-                    تسجيل الخروج
+                    {t('common.logout')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -207,7 +216,7 @@ const AppContent: React.FC = () => {
               size="sm"
               onClick={() => setShowSettings(true)}
               className="h-8 w-8 p-0 hover:bg-accent native-button"
-              title="فتح الإعدادات"
+              title={t('common.openSettings')}
             >
               <Settings className="w-4 h-4" />
             </Button>
