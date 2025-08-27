@@ -109,7 +109,7 @@ const connectionHealthCheck = setInterval(() => {
   for (const [connectionId, connection] of sshConnections.entries()) {
     if (connection.isConnected) {
       const timeSinceLastActivity = Date.now() - connection.lastActivity.getTime();
-      
+
       // If no activity for 60 seconds, send a keep-alive
       if (timeSinceLastActivity > 60000) {
         try {
@@ -143,7 +143,7 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
 
     const attemptConnection = () => {
       connectionAttempts++;
-      
+
       client.on('ready', () => {
         const sshConnection: SSHConnection = {
           id: connectionId,
@@ -155,7 +155,7 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
         };
 
         sshConnections.set(connectionId, sshConnection);
-        
+
         // Set up keep-alive mechanism
         const keepAlive = setInterval(() => {
           const conn = sshConnections.get(connectionId);
@@ -167,18 +167,15 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
             clearInterval(keepAlive);
           }
         }, 20000); // Every 20 seconds
-        
+
         sshConnection.keepAliveInterval = keepAlive;
 
         // Send welcome message
         mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: `✅ Connected to ${connectionConfig.host} as ${connectionConfig.username}\r\n`,
-          type: 'info',
-          timestamp: new Date()
-        });
-
-        resolve(true);
+          data: `✅ Connected to ...`,
+          type: 'info'
+        })
+        resolve(true)
       });
 
       client.on('error', (err) => {
@@ -188,7 +185,7 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
           type: 'error',
           timestamp: new Date()
         });
-        
+
         // Retry connection if it's a recoverable error
         if (connectionAttempts < maxRetries && (err.message.includes('ECONNREFUSED') || err.message.includes('timeout'))) {
           mainWindow.webContents.send('ssh-output', {
@@ -214,7 +211,7 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
           }
           sshConnections.set(connectionId, connection);
         }
-        
+
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('ssh-output', {
             connectionId,
@@ -224,7 +221,7 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
           });
         }
       });
-      
+
       // Handle timeout
       client.on('timeout', () => {
         console.log('SSH connection timeout');
@@ -272,76 +269,50 @@ ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
 });
 
 ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
-  const connection = sshConnections.get(connectionId);
-  if (!connection || !connection.isConnected) return false;
+  const connection = sshConnections.get(connectionId)
+  if (!connection || !connection.isConnected) return false
+
+  // ✅ اقفل أي shell قديم
+  if (connection.shell) {
+    try { connection.shell.end() } catch {}
+    connection.shell = null
+  }
 
   return new Promise((resolve, reject) => {
     connection.client.shell((err, shell) => {
       if (err) {
-        reject(err);
-        return;
+        reject(err)
+        return
       }
 
-      connection.shell = shell;
-      sshConnections.set(connectionId, connection);
+      connection.shell = shell
+      sshConnections.set(connectionId, connection)
 
       mainWindow.webContents.send('ssh-output', {
         connectionId,
         data: '🚀 Interactive shell started. Ready for commands...\r\n',
         type: 'info',
         timestamp: new Date()
-      });
-
-      // Handle shell output with debouncing to prevent duplication
-      let outputBuffer = '';
-      let outputTimer: NodeJS.Timeout | null = null;
-
-      const flushOutput = () => {
-        if (outputBuffer && mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('ssh-output', {
-            connectionId,
-            data: outputBuffer,
-            type: 'stdout',
-            timestamp: new Date()
-          });
-          outputBuffer = '';
-        }
-      };
+      })
 
       shell.on('data', (data: Buffer) => {
-        const newData = data.toString();
-        
-        // Update last activity
-        connection.lastActivity = new Date();
-        
-        // Clear existing timer
-        if (outputTimer) {
-          clearTimeout(outputTimer);
-        }
-        
-        // Add to buffer
-        outputBuffer += newData;
-        
-        // Set new timer to flush after a short delay
-        outputTimer = setTimeout(flushOutput, 10);
-        
-        // If buffer gets too large, flush immediately
-        if (outputBuffer.length > 8192) {
-          flushOutput();
-        }
-      });
+        connection.lastActivity = new Date()
+        mainWindow.webContents.send('ssh-output', {
+          connectionId,
+          data: data.toString(),
+          type: 'stdout',
+          timestamp: new Date()
+        })
+      })
 
       shell.stderr.on('data', (data: Buffer) => {
-        // Send stderr immediately without buffering
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('ssh-output', {
-            connectionId,
-            data: data.toString(),
-            type: 'stderr',
-            timestamp: new Date()
-          });
-        }
-      });
+        mainWindow.webContents.send('ssh-output', {
+          connectionId,
+          data: data.toString(),
+          type: 'stderr',
+          timestamp: new Date()
+        })
+      })
 
       shell.on('close', () => {
         mainWindow.webContents.send('ssh-output', {
@@ -349,12 +320,12 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
           data: '\r\n💀 Shell session ended\r\n',
           type: 'info',
           timestamp: new Date()
-        });
-      });
+        })
+      })
 
-      resolve(true);
-    });
-  });
+      resolve(true)
+    })
+  })
 });
 
 ipcMain.handle('ssh-send-input', async (event, connectionId, input) => {
@@ -364,7 +335,7 @@ ipcMain.handle('ssh-send-input', async (event, connectionId, input) => {
   try {
     // Send input as-is without modification
     connection.shell.write(input);
-    
+
     // Update last activity
     connection.lastActivity = new Date();
     sshConnections.set(connectionId, connection);
@@ -475,10 +446,10 @@ ipcMain.handle('ssh-list-directory', async (event, connectionId, remotePath) => 
   });
 });
 
-ipcMain.handle('ssh-is-connected', async (event, connectionId) => {
-  const connection = sshConnections.get(connectionId);
-  return connection ? connection.isConnected : false;
-});
+// ipcMain.handle('ssh-is-connected', async (event, connectionId) => {
+//   const connection = sshConnections.get(connectionId);
+//   return connection ? connection.isConnected : false;
+// });
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.

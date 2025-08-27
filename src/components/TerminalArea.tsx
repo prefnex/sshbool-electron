@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Plus, 
-  Terminal, 
-  X, 
-  Maximize2, 
+import {
+  Plus,
+  Terminal,
+  X,
+  Maximize2,
   Minimize2,
   Split,
   Grid3X3,
@@ -29,11 +29,11 @@ import WelcomeScreen from './WelcomeScreen'
 import toast from 'react-hot-toast'
 
 const TerminalArea: React.FC = () => {
-  const { 
-    terminals, 
-    activeTerminalId, 
-    setActiveTerminal, 
-    addTerminal, 
+  const {
+    terminals,
+    activeTerminalId,
+    setActiveTerminal,
+    addTerminal,
     removeTerminal,
     connections,
     sftpTabs,
@@ -42,7 +42,7 @@ const TerminalArea: React.FC = () => {
     removeSftpTab,
     setActiveSftp
   } = useTerminalStore()
-  
+
   const [layout, setLayout] = useState<'single' | 'split' | 'grid'>('single')
   const [maximizedTerminal, setMaximizedTerminal] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString())
@@ -53,7 +53,7 @@ const TerminalArea: React.FC = () => {
     const timer = setInterval(() => {
       setCurrentTime(new Date().toLocaleTimeString())
     }, 1000)
-    
+
     return () => clearInterval(timer)
   }, [])
 
@@ -70,7 +70,7 @@ const TerminalArea: React.FC = () => {
       })
       return
     }
-    
+
     // Use the first available connection
     const connection = connections[0]
     try {
@@ -78,7 +78,7 @@ const TerminalArea: React.FC = () => {
         connectionId: connection.id,
         title: `${connection.name} - ${connection.host}`,
       })
-      
+
       toast.success(`New terminal created for connection: ${connection.name}`, {
         duration: 2000,
         style: {
@@ -165,7 +165,7 @@ const TerminalArea: React.FC = () => {
     // For single layout (default), show only the active terminal (tab-style)
     if (layout === 'single') {
       const activeTerminal = terminals.find(t => t.id === activeTerminalId) || terminals[0]
-      
+
       return (
         <motion.div
           key={activeTerminal.id}
@@ -281,25 +281,25 @@ const TerminalArea: React.FC = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                    onClick={handleNewTerminal}
-                    disabled={connections.length === 0}
-                    className={connections.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
-                  >
-                    <Plus className="w-3 h-3 mr-2" />
-                    New Terminal
-                  </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleNewTerminal}
+                  disabled={connections.length === 0}
+                  className={connections.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+                >
+                  <Plus className="w-3 h-3 mr-2" />
+                  New Terminal
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setLayout('single')}>
                   Single Layout
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setLayout('split')}
                   disabled={terminals.length < 2}
                 >
                   Split Layout
                 </DropdownMenuItem>
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => setLayout('grid')}
                   disabled={terminals.length < 2}
                 >
@@ -404,7 +404,7 @@ const TerminalArea: React.FC = () => {
           {terminals.map((terminal) => {
             const connection = connections.find(c => c.id === terminal.connectionId)
             const isActive = activeTerminalId === terminal.id && activeTabType === 'terminal'
-            
+
             return (
               <motion.div
                 key={terminal.id}
@@ -422,29 +422,19 @@ const TerminalArea: React.FC = () => {
                         setActiveTabType('terminal')
                         handleTerminalClick(terminal.id)
                       }}
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                      }}
-                      className={cn(
-                        "h-8 px-3 text-xs font-medium",
-                        isActive && "bg-secondary text-secondary-foreground"
-                      )}
+                      className={cn("h-8 px-3 text-xs font-medium", isActive && "bg-secondary text-secondary-foreground")}
                     >
                       <Terminal className="w-3 h-3 mr-1" />
-                      {terminal.title || `Terminal ${terminal.id.slice(-4)}`}
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      {terminal.title}
+                      <span
                         onClick={(e) => {
                           e.stopPropagation()
                           handleCloseTerminal(terminal.id)
                         }}
-                        className="ml-2 h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                        className="ml-2 h-5 w-5 flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground rounded cursor-pointer"
                       >
                         <X className="w-3 h-3" />
-                      </Button>
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -580,7 +570,7 @@ const TerminalArea: React.FC = () => {
           {sftpTabs.map((sftpTab) => {
             const connection = connections.find(c => c.id === sftpTab.connectionId)
             const isActive = activeSftpId === sftpTab.id && activeTabType === 'sftp'
-            
+
             return (
               <motion.div
                 key={sftpTab.id}
@@ -603,7 +593,7 @@ const TerminalArea: React.FC = () => {
                 >
                   <FolderOpen className="w-3 h-3 mr-1" />
                   {sftpTab.title || `SFTP ${sftpTab.id.slice(-4)}`}
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -638,7 +628,7 @@ const TerminalArea: React.FC = () => {
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-green-400 font-medium">
-                {activeTabType === 'terminal' 
+                {activeTabType === 'terminal'
                   ? (getActiveTerminal()?.title || 'No Active Terminal')
                   : (sftpTabs.find(s => s.id === activeSftpId)?.title || 'SFTP Manager')}
               </span>
@@ -651,7 +641,7 @@ const TerminalArea: React.FC = () => {
               Mode: {activeTabType === 'terminal' ? '🖥️ Terminal' : '📁 SFTP'}
             </span>
           </div>
-            
+
           <div className="flex items-center gap-4 text-muted-foreground">
             <span>🔗 {connections.length} Connections</span>
             <span>🖥️ {terminals.length} Terminals</span>

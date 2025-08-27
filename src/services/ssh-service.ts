@@ -72,6 +72,7 @@ class SSHService {
   }
 
   async startShell(connectionId: string): Promise<boolean> {
+    console.log("starting shell for connection:", connectionId)
     const connection = this.connections.get(connectionId)
     if (!connection || !connection.isConnected) return false
 

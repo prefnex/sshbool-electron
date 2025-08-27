@@ -5,11 +5,9 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { motion } from 'framer-motion'
-import { 
-  X, 
-  Maximize2, 
-  Minimize2, 
-  Settings, 
+import {
+  X,
+  Settings,
   Search,
   RefreshCw,
   Wifi,
@@ -43,32 +41,25 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const fitAddonRef = useRef<FitAddon | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
-  
+
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [showSearch, setShowSearch] = useState(false)
-  const [commandHistory, setCommandHistory] = useState<string[]>([])
-  const [historyIndex, setHistoryIndex] = useState(-1)
-  const [currentCommand, setCurrentCommand] = useState('')
   const [showSftpManager, setShowSftpManager] = useState(false)
   const [connectionCheckInterval, setConnectionCheckInterval] = useState<NodeJS.Timeout | null>(null)
-  const [lastDataReceived, setLastDataReceived] = useState<Date>(new Date())
-  
+
   const { terminals, connections, terminalTheme, updateTerminalActivity, setTerminalUnread } = useTerminalStore()
-  
+
   const terminal = terminals.find(t => t.id === terminalId)
   const connection = terminal ? connections.find(c => c.id === terminal.connectionId) : null
 
-  // Initialize terminal once on mount or when terminalId changes
+  // Initialize terminal
   useEffect(() => {
     if (!terminalRef.current || !terminal || !connection) return
-
-    // Get current theme
     const currentTheme = getThemeById(terminalTheme) || getDefaultTheme()
 
-    // Initialize xterm.js with improved configuration
     const xterm = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
@@ -76,29 +67,23 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       fontFamily: 'JetBrains Mono, Fira Code, Consolas, "Courier New", monospace',
       fontWeight: 500,
       theme: currentTheme.colors,
-      allowTransparency: false,
       convertEol: true,
-      scrollback: 10000, // Increased scrollback buffer
+      scrollback: 10000,
       tabStopWidth: 4,
       rows: 30,
       cols: 100,
-      // Improve performance and reduce shaking
       fastScrollModifier: 'alt',
       fastScrollSensitivity: 5,
-      scrollSensitivity: 3, // Better scroll sensitivity
-      // Improve rendering performance
+      scrollSensitivity: 3,
       disableStdin: false,
       windowsMode: false,
       macOptionIsMeta: true,
       minimumContrastRatio: 1,
-      // Enable mouse wheel scrolling
       smoothScrollDuration: 125,
-      // Disable problematic features that cause issues
       altClickMovesCursor: false,
       rightClickSelectsWord: false
     })
 
-    // Add addons
     const fitAddon = new FitAddon()
     const webLinksAddon = new WebLinksAddon()
     const searchAddon = new SearchAddon()
@@ -107,12 +92,10 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     xterm.loadAddon(webLinksAddon)
     xterm.loadAddon(searchAddon)
 
-    // Store references
     xtermRef.current = xterm
     fitAddonRef.current = fitAddon
     searchAddonRef.current = searchAddon
 
-    // Open terminal
     xterm.open(terminalRef.current)
     fitAddon.fit()
 
@@ -121,268 +104,107 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     xterm.writeln(`📡 Connecting to \x1b[1;32m${connection.username}@${connection.host}:${connection.port}\x1b[0m`)
     xterm.writeln('')
 
-    // Auto-copy on selection with debouncing
+    // Copy on select
     let selectionTimer: NodeJS.Timeout | null = null
     xterm.onSelectionChange(() => {
       const selection = xterm.getSelection()
       if (selection && selection.length > 0) {
-        // Clear existing timer
-        if (selectionTimer) {
-          clearTimeout(selectionTimer)
-        }
-        
-        // Set new timer to copy after a short delay
+        if (selectionTimer) clearTimeout(selectionTimer)
         selectionTimer = setTimeout(() => {
-          try {
-            navigator.clipboard.writeText(selection).then(() => {
-              console.log('Text copied to clipboard:', selection)
-              // Show a subtle toast notification
-              toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
-                duration: 1500,
-                style: {
-                  background: '#0a0a0a',
-                  color: '#00ff88',
-                  border: '1px solid #00ff88',
-                  fontSize: '12px'
-                }
-              })
-            }).catch(() => {
-              // Fallback for older browsers
-              const textArea = document.createElement('textarea')
-              textArea.value = selection
-              document.body.appendChild(textArea)
-              textArea.select()
-              document.execCommand('copy')
-              document.body.removeChild(textArea)
-              console.log('Text copied to clipboard (fallback):', selection)
-              toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
-                duration: 1500,
-                style: {
-                  background: '#0a0a0a',
-                  color: '#00ff88',
-                  border: '1px solid #00ff88',
-                  fontSize: '12px'
-                }
-              })
-            })
-          } catch (error) {
-            console.error('Failed to copy text to clipboard:', error)
-            toast.error('فشل في نسخ النص', {
+          navigator.clipboard.writeText(selection).then(() => {
+            toast.success(`📋 Copied: ${selection.length > 30 ? selection.substring(0, 30) + '...' : selection}`, {
               duration: 1500,
-              style: {
-                background: '#0a0a0a',
-                color: '#ff6b6b',
-                border: '1px solid #ff6b6b',
-                fontSize: '12px'
-              }
+              style: { background: '#0a0a0a', color: '#00ff88', border: '1px solid #00ff88', fontSize: '12px' }
             })
-          }
-        }, 100) // Wait 100ms before copying
+          }).catch(() => {
+            console.error('Clipboard copy failed')
+          })
+        }, 100)
       }
     })
 
-    // Handle input with improved reliability
-    let inputBuffer = '';
-    let inputTimer: NodeJS.Timeout | null = null;
-    let lastInputTime = Date.now();
-    
-    const flushInput = () => {
-      if (inputBuffer && isConnected) {
-        sshService.sendInput(connection.id, inputBuffer)
-        inputBuffer = '';
-        updateTerminalActivity(terminalId)
-      }
-    };
-
+    // Input handling (fixed)
     xterm.onData((data) => {
-      // Check connection status more reliably
-      const connection = sshService.getConnection(connectionId)
-      if (!connection || !connection.isConnected) {
-        // Don't spam the error message
-        const now = Date.now()
-        if (now - lastInputTime > 2000) {
-          xterm.write('\r\n\x1b[91m⚠️  Not connected to server. Please reconnect.\x1b[0m\r\n')
-          lastInputTime = now
-        }
-        return
-      }
-
-      // Clear existing timer
-      if (inputTimer) {
-        clearTimeout(inputTimer)
-      }
-
-      // For special keys (Enter, Backspace, etc.), send immediately
-      const isSpecialKey = data === '\r' || data === '\n' || data === '\x7f' || data === '\x08' || 
-                          data.charCodeAt(0) < 32 || data.includes('\x1b')
-      
-      if (isSpecialKey) {
-        // Send any buffered input first
-        if (inputBuffer) {
-          sshService.sendInput(connection.id, inputBuffer)
-          inputBuffer = ''
-        }
-        // Then send the special key
-        sshService.sendInput(connection.id, data)
-        updateTerminalActivity(terminalId)
-      } else {
-        // Buffer regular characters
-        inputBuffer += data
-        // Set timer to flush after very short delay for better responsiveness
-        inputTimer = setTimeout(flushInput, 2)
-        
-        // If buffer gets too large, flush immediately
-        if (inputBuffer.length > 50) {
-          flushInput()
-        }
-      }
+      if (!connection) return
+      sshService.sendInput(connection.id, data)
+      updateTerminalActivity(terminalId)
     })
 
-    // Handle resize
+    // Resize handling
     const handleResize = () => {
-      if (fitAddon) {
-        try {
-          fitAddon.fit()
-        } catch (error) {
-          console.error('Failed to fit terminal:', error)
-        }
-      }
+      try { fitAddon.fit() } catch (e) { console.error('Fit error:', e) }
     }
-
-    // Set up resize observer
     if (terminalRef.current) {
       resizeObserverRef.current = new ResizeObserver(handleResize)
       resizeObserverRef.current.observe(terminalRef.current)
     }
 
-    // Connect to SSH
+    // Connect SSH
     connectToSSH()
 
-    // Set up connection health check
+    // Health check
     const checkConnectionHealth = setInterval(async () => {
       if (connection) {
-        const isStillConnected = await sshService.isConnected(connection.id)
-        if (isStillConnected !== isConnected) {
-          setIsConnected(isStillConnected)
-          if (!isStillConnected && !connectionError) {
-            setConnectionError('Connection lost')
-          }
+        const stillConnected = await sshService.isConnected(connection.id)
+        setIsConnected(stillConnected)
+        if (!stillConnected && !connectionError) {
+          setConnectionError('Connection lost')
         }
       }
-    }, 5000) // Check every 5 seconds
-
+    }, 5000)
     setConnectionCheckInterval(checkConnectionHealth)
 
-    // Cleanup
     return () => {
-      // Clear any pending timers
-      if (inputTimer) {
-        clearTimeout(inputTimer)
-      }
-      
-      if (selectionTimer) {
-        clearTimeout(selectionTimer)
-      }
-      
-      if (checkConnectionHealth) {
-        clearInterval(checkConnectionHealth)
-      }
-      
-      // Flush any remaining input
-      if (inputBuffer && isConnected) {
-        sshService.sendInput(connection.id, inputBuffer)
-      }
-      
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect()
-      }
-      if (xtermRef.current) {
-        xtermRef.current.dispose()
-      }
-      if (isConnected) {
-        sshService.disconnect(connection.id)
-      }
+      if (selectionTimer) clearTimeout(selectionTimer)
+      if (checkConnectionHealth) clearInterval(checkConnectionHealth)
+      if (resizeObserverRef.current) resizeObserverRef.current.disconnect()
+      if (xtermRef.current) xtermRef.current.dispose()
+      // if (isConnected && connection) sshService.disconnect(connection.id)
     }
   }, [terminalId])
 
-  // Handle window resize
+  // Window resize
   useEffect(() => {
     const handleWindowResize = () => {
       if (fitAddonRef.current && isActive) {
         setTimeout(() => {
-          try {
-            fitAddonRef.current?.fit()
-          } catch (error) {
-            console.error('Failed to fit terminal on window resize:', error)
-          }
+          try { fitAddonRef.current?.fit() } catch (e) {}
         }, 100)
       }
     }
-
     window.addEventListener('resize', handleWindowResize)
     return () => window.removeEventListener('resize', handleWindowResize)
   }, [isActive])
 
-  // Fit terminal when becoming active
+  // Fit on active
   useEffect(() => {
     if (isActive && fitAddonRef.current) {
       setTimeout(() => {
-        try {
-          fitAddonRef.current?.fit()
-        } catch (error) {
-          console.error('Failed to fit terminal when becoming active:', error)
-        }
+        try { fitAddonRef.current?.fit() } catch (e) {}
       }, 100)
     }
   }, [isActive])
 
   const connectToSSH = async () => {
     if (!connection) return
-
     setIsConnecting(true)
     setConnectionError(null)
-
+  
     try {
       const success = await sshService.connect(connection, handleSSHOutput)
-      
       if (success) {
         setIsConnected(true)
         setConnectionError(null)
-        
-        // Start shell with a small delay to ensure connection is stable
         await new Promise(resolve => setTimeout(resolve, 100))
         await sshService.startShell(connection.id)
-        
-        toast.success(`✅ Connected to ${connection.host}`, {
-          duration: 2000,
-          style: {
-            background: '#0a0a0a',
-            color: '#00ff88',
-            border: '1px solid #00ff88'
-          }
-        })
       } else {
         setConnectionError('Failed to connect')
-        toast.error('❌ SSH connection failed', {
-          duration: 3000,
-          style: {
-            background: '#0a0a0a',
-            color: '#ff6b6b',
-            border: '1px solid #ff6b6b'
-          }
-        })
+        toast.error('❌ SSH connection failed')
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setConnectionError(errorMessage)
-      toast.error(`❌ Connection failed: ${errorMessage}`, {
-        duration: 3000,
-        style: {
-          background: '#0a0a0a',
-          color: '#ff6b6b',
-          border: '1px solid #ff6b6b'
-        }
-      })
+      toast.error(`❌ Connection failed: ${errorMessage}`)
     } finally {
       setIsConnecting(false)
     }
@@ -390,72 +212,40 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
 
   const handleSSHOutput = (output: SSHOutput) => {
     if (!xtermRef.current) return
-
-    // Update activity and last data received time
     updateTerminalActivity(terminalId)
-    setLastDataReceived(new Date())
-    
-    // Mark as unread if not active
-    if (!isActive) {
-      setTerminalUnread(terminalId, true)
-    }
+    if (!isActive) setTerminalUnread(terminalId, true)
 
-    // Write output to terminal with appropriate styling and improved performance
-    try {
-      switch (output.type) {
-        case 'stdout':
-          // Write stdout data as-is for better compatibility
-          // Filter out duplicate prompts and clean output
-          let cleanData = output.data
-          // Remove duplicate prompt patterns
-          cleanData = cleanData.replace(/(ubuntu@[^:]+:~\$\s*){2,}/g, '$1')
-          xtermRef.current.write(cleanData)
-          break
-        case 'stderr':
-          xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
-          break
-        case 'info':
-          // Don't write repetitive info messages
-          if (!output.data.includes('Interactive shell started')) {
-            xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`) // Blue for info
-          }
-          break
-        case 'error':
-          xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`) // Red for errors
-          // If we get an error, update connection status
-          if (output.data.includes('closed') || output.data.includes('disconnect')) {
-            setIsConnected(false)
-            setConnectionError('Connection closed')
-          }
-          break
-      }
-    } catch (error) {
-      console.error('Failed to write to terminal:', error)
-      // Try to recover by writing a simple error message
-      try {
-        xtermRef.current.write('\r\n\x1b[91m[Terminal Error: Failed to display output]\x1b[0m\r\n')
-      } catch (recoveryError) {
-        console.error('Terminal recovery failed:', recoveryError)
-      }
+    switch (output.type) {
+      case 'stdout':
+        xtermRef.current.write(output.data)
+        break
+      case 'stderr':
+        xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`)
+        break
+      case 'info':
+        if (!output.data.includes('Interactive shell started')) {
+          xtermRef.current.write(`\x1b[94m${output.data}\x1b[0m`)
+        }
+        break
+      case 'error':
+        xtermRef.current.write(`\x1b[91m${output.data}\x1b[0m`)
+        setIsConnected(false)
+        setConnectionError('Connection closed')
+        break
     }
   }
 
   const handleReconnect = () => {
-    if (connection) {
-      connectToSSH()
-    }
+    if (connection) connectToSSH()
   }
 
   const handleSearch = () => {
     if (!searchAddonRef.current || !searchTerm) return
-    
     searchAddonRef.current.findNext(searchTerm)
   }
 
   const handleClearTerminal = () => {
-    if (xtermRef.current) {
-      xtermRef.current.clear()
-    }
+    xtermRef.current?.clear()
   }
 
   const handleUploadFile = () => {
@@ -465,25 +255,19 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     input.onchange = async (e) => {
       const files = (e.target as HTMLInputElement).files
       if (!files || !connection) return
-
       for (const file of Array.from(files)) {
         try {
           const remotePath = `/tmp/${file.name}`
-          const localPath = file.path || `/tmp/${file.name}`
-          
           toast.info(`Uploading ${file.name}...`)
-          const success = await sshService.uploadFile(connection.id, localPath, remotePath)
-          
+          const success = await sshService.uploadFile(connection.id, file.path || `/tmp/${file.name}`, remotePath)
           if (success) {
-            toast.success(`${file.name} uploaded successfully`)
-            if (xtermRef.current) {
-              xtermRef.current.write(`\r\n📁 Uploaded: ${file.name} -> ${remotePath}\r\n`)
-            }
+            toast.success(`${file.name} uploaded`)
+            xtermRef.current?.write(`\r\n📁 Uploaded: ${file.name} -> ${remotePath}\r\n`)
           } else {
             toast.error(`Failed to upload ${file.name}`)
           }
-        } catch (error) {
-          toast.error(`Upload failed: ${error.message}`)
+        } catch (e: any) {
+          toast.error(`Upload failed: ${e.message}`)
         }
       }
     }
@@ -493,177 +277,87 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
   const handleDownloadFile = () => {
     const fileName = prompt('Enter file path to download:')
     if (!fileName || !connection) return
-
-    const downloadFile = async () => {
+    ;(async () => {
       try {
         const localPath = `/tmp/${fileName.split('/').pop()}`
-        
         toast.info(`Downloading ${fileName}...`)
         const success = await sshService.downloadFile(connection.id, fileName, localPath)
-        
         if (success) {
-          toast.success(`File downloaded successfully`)
-          if (xtermRef.current) {
-            xtermRef.current.write(`\r\n📁 Downloaded: ${fileName} -> ${localPath}\r\n`)
-          }
+          toast.success(`Downloaded successfully`)
+          xtermRef.current?.write(`\r\n📁 Downloaded: ${fileName} -> ${localPath}\r\n`)
         } else {
           toast.error(`Failed to download file`)
         }
-      } catch (error) {
-        toast.error(`Download failed: ${error.message}`)
+      } catch (e: any) {
+        toast.error(`Download failed: ${e.message}`)
       }
-    }
-
-    downloadFile()
+    })()
   }
 
   if (!terminal || !connection) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Terminal not found</p>
-      </div>
-    )
+    return <div className="flex items-center justify-center h-full"><p className="text-muted-foreground">Terminal not found</p></div>
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="h-full flex flex-col bg-background"
-    >
-      {/* Terminal Header */}
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="h-full flex flex-col bg-background">
+      {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-border bg-muted/20">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            {isConnected ? (
-              <Wifi className="w-4 h-4 text-green-500" />
-            ) : (
-              <WifiOff className="w-4 h-4 text-red-500" />
-            )}
+            {isConnected ? <Wifi className="w-4 h-4 text-green-500" /> : <WifiOff className="w-4 h-4 text-red-500" />}
             <span className="font-medium text-sm">{terminal.title}</span>
           </div>
-          
-          <Badge 
-            variant={isConnected ? "default" : "destructive"} 
-            className="text-xs"
-          >
+          <Badge variant={isConnected ? "default" : "destructive"} className="text-xs">
             {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
-          
-          {connectionError && (
-            <Badge variant="destructive" className="text-xs">
-              {connectionError}
-            </Badge>
-          )}
+          {connectionError && <Badge variant="destructive" className="text-xs">{connectionError}</Badge>}
         </div>
-
         <div className="flex items-center gap-1">
           {showSearch && (
             <div className="flex items-center gap-2 mr-2">
-              <Input
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="h-8 w-32 text-xs"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSearch}
-                className="h-8 w-8 p-0"
-              >
-                <Search className="w-4 h-4" />
-              </Button>
+              <Input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} className="h-8 w-32 text-xs" />
+              <Button variant="ghost" size="sm" onClick={handleSearch} className="h-8 w-8 p-0"><Search className="w-4 h-4" /></Button>
             </div>
           )}
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <Settings className="w-4 h-4" />
-              </Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><Settings className="w-4 h-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowSearch(!showSearch)}>
-                <Search className="w-4 h-4 mr-2" />
-                {showSearch ? 'Hide Search' : 'Show Search'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleClearTerminal}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Clear Terminal
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowSearch(!showSearch)}><Search className="w-4 h-4 mr-2" />{showSearch ? 'Hide Search' : 'Show Search'}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleClearTerminal}><RefreshCw className="w-4 h-4 mr-2" />Clear Terminal</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setShowSftpManager(true)}>
-                <FolderOpen className="w-4 h-4 mr-2" />
-                SFTP File Manager
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowSftpManager(true)}><FolderOpen className="w-4 h-4 mr-2" />SFTP File Manager</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleUploadFile}>
-                <Upload className="w-4 h-4 mr-2" />
-                Upload File
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadFile}>
-                <Download className="w-4 h-4 mr-2" />
-                Download File
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleUploadFile}><Upload className="w-4 h-4 mr-2" />Upload File</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadFile}><Download className="w-4 h-4 mr-2" />Download File</DropdownMenuItem>
               <DropdownMenuSeparator />
-              {!isConnected && (
-                <DropdownMenuItem onClick={handleReconnect}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Reconnect
-                </DropdownMenuItem>
-              )}
+              {!isConnected && <DropdownMenuItem onClick={handleReconnect}><RefreshCw className="w-4 h-4 mr-2" />Reconnect</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-8 w-8 p-0 hover:bg-red-500 hover:text-white"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 hover:bg-red-500 hover:text-white"><X className="w-4 h-4" /></Button>
         </div>
       </div>
 
-      {/* Terminal Content */}
+      {/* Terminal */}
       <div className="flex-1 relative overflow-hidden">
         {!isConnected && !isConnecting && connectionError && (
           <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center z-10">
             <Card className="w-96">
-              <CardHeader>
-                <h3 className="text-lg font-semibold text-destructive">Connection Failed</h3>
-              </CardHeader>
+              <CardHeader><h3 className="text-lg font-semibold text-destructive">Connection Failed</h3></CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">{connectionError}</p>
-                <Button onClick={handleReconnect} className="w-full">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Retry Connection
-                </Button>
+                <Button onClick={handleReconnect} className="w-full"><RefreshCw className="w-4 h-4 mr-2" />Retry Connection</Button>
               </CardContent>
             </Card>
           </div>
         )}
-        
-        <div 
-          ref={terminalRef} 
-          className={cn(
-            "w-full h-full p-2 terminal-scroll",
-            !isActive && "opacity-50"
-          )}
-        />
+        <div ref={terminalRef} className={cn("w-full h-full p-2 terminal-scroll", !isActive && "opacity-50")} />
       </div>
 
       {/* SFTP Manager */}
       {connection && (
-        <SftpManager
-          connectionId={connection.id}
-          isOpen={showSftpManager}
-          onClose={() => setShowSftpManager(false)}
-        />
+        <SftpManager connectionId={connection.id} isOpen={showSftpManager} onClose={() => setShowSftpManager(false)} />
       )}
     </motion.div>
   )
