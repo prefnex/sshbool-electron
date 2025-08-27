@@ -79,9 +79,10 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       windowsMode: false,
       macOptionIsMeta: true,
       minimumContrastRatio: 1,
-      smoothScrollDuration: 125,
+      smoothScrollDuration: 50, // تحسين السرعة
       altClickMovesCursor: false,
-      rightClickSelectsWord: false
+      rightClickSelectsWord: false,
+      allowProposedApi: true // لتمكين المميزات المتقدمة
     })
 
     const fitAddon = new FitAddon()
@@ -104,8 +105,10 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
     xterm.writeln(`📡 Connecting to \x1b[1;32m${connection.username}@${connection.host}:${connection.port}\x1b[0m`)
     xterm.writeln('')
 
-    // Copy on select
+    // Copy on select and right-click paste
     let selectionTimer: NodeJS.Timeout | null = null
+    
+    // Copy on selection
     xterm.onSelectionChange(() => {
       const selection = xterm.getSelection()
       if (selection && selection.length > 0) {
@@ -123,11 +126,130 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
       }
     })
 
-    // Input handling (fixed)
+    // Right-click context menu
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault()
+      const selection = xterm.getSelection()
+      
+      // Get settings from localStorage
+      const settings = JSON.parse(localStorage.getItem('flyterm-settings') || '{}')
+      const pasteOnRightClick = settings.pasteOnRightClick !== false // default true
+      
+      if (pasteOnRightClick && !selection) {
+        // Paste from clipboard if no selection and setting is enabled
+        navigator.clipboard.readText().then(text => {
+          if (text && connection) {
+            sshService.sendInput(connection.id, text)
+            toast.success('📋 Pasted from clipboard!', {
+              duration: 1000,
+              style: { background: '#0a0a0a', color: '#00ff88', border: '1px solid #00ff88', fontSize: '12px' }
+            })
+          }
+        }).catch(() => {
+          console.error('Clipboard read failed')
+        })
+      } else {
+        // Show context menu with options
+        const contextMenu = document.createElement('div')
+        contextMenu.className = 'fixed bg-background border border-border rounded-md shadow-lg z-50 py-1 min-w-32'
+        contextMenu.style.left = `${e.clientX}px`
+        contextMenu.style.top = `${e.clientY}px`
+        
+        const menuItems = []
+        
+        if (selection) {
+          menuItems.push({
+            text: '📋 Copy',
+            action: () => {
+              navigator.clipboard.writeText(selection)
+              toast.success('Copied to clipboard!')
+            }
+          })
+        }
+        
+        menuItems.push({
+          text: '📋 Paste',
+          action: () => {
+            navigator.clipboard.readText().then(text => {
+              if (text && connection) {
+                sshService.sendInput(connection.id, text)
+                toast.success('Pasted!')
+              }
+            })
+          }
+        })
+        
+        menuItems.push({
+          text: '🧹 Clear',
+          action: () => {
+            xterm.clear()
+            toast.success('Terminal cleared!')
+          }
+        })
+        
+        menuItems.forEach((item, index) => {
+          const menuItem = document.createElement('div')
+          menuItem.className = 'px-3 py-1 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground'
+          menuItem.textContent = item.text
+          menuItem.onclick = () => {
+            item.action()
+            document.body.removeChild(contextMenu)
+          }
+          contextMenu.appendChild(menuItem)
+        })
+        
+        document.body.appendChild(contextMenu)
+        
+        // Remove menu on click outside
+        const removeMenu = (e: Event) => {
+          if (!contextMenu.contains(e.target as Node)) {
+            if (document.body.contains(contextMenu)) {
+              document.body.removeChild(contextMenu)
+            }
+            document.removeEventListener('click', removeMenu)
+          }
+        }
+        
+        setTimeout(() => {
+          document.addEventListener('click', removeMenu)
+        }, 10)
+      }
+    }
+    
+    // Attach context menu to terminal element
+    if (terminalRef.current) {
+      terminalRef.current.addEventListener('contextmenu', handleContextMenu)
+    }
+
+    // Input handling (optimized for speed)
+    let inputBuffer = ''
+    let inputTimer: NodeJS.Timeout | null = null
+
     xterm.onData((data) => {
       if (!connection) return
-      sshService.sendInput(connection.id, data)
-      updateTerminalActivity(terminalId)
+
+      // Buffer input for better performance with rapid typing
+      inputBuffer += data
+      
+      if (inputTimer) clearTimeout(inputTimer)
+      
+      // Send input immediately for interactive characters
+      if (data === '\r' || data === '\n' || data === '\t' || data.length > 1) {
+        if (inputBuffer) {
+          sshService.sendInput(connection.id, inputBuffer)
+          inputBuffer = ''
+        }
+        updateTerminalActivity(terminalId)
+      } else {
+        // Buffer regular characters for a very short time
+        inputTimer = setTimeout(() => {
+          if (inputBuffer) {
+            sshService.sendInput(connection.id, inputBuffer)
+            inputBuffer = ''
+            updateTerminalActivity(terminalId)
+          }
+        }, 50) // Reduced from default to 50ms for faster response
+      }
     })
 
     // Resize handling
@@ -156,10 +278,14 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ terminalId, isActive, onClose
 
     return () => {
       if (selectionTimer) clearTimeout(selectionTimer)
+      if (inputTimer) clearTimeout(inputTimer)
       if (checkConnectionHealth) clearInterval(checkConnectionHealth)
       if (resizeObserverRef.current) resizeObserverRef.current.disconnect()
+      if (terminalRef.current) {
+        terminalRef.current.removeEventListener('contextmenu', handleContextMenu)
+      }
       if (xtermRef.current) xtermRef.current.dispose()
-      // if (isConnected && connection) sshService.disconnect(connection.id)
+      // Don't disconnect SSH when switching tabs - keep session alive
     }
   }, [terminalId])
 

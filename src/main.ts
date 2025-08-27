@@ -104,34 +104,48 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false;
 });
 
-// Connection health monitoring
-const connectionHealthCheck = setInterval(() => {
-  for (const [connectionId, connection] of sshConnections.entries()) {
-    if (connection.isConnected) {
-      const timeSinceLastActivity = Date.now() - connection.lastActivity.getTime();
+  // Connection health monitoring with improved keep-alive
+  const connectionHealthCheck = setInterval(() => {
+    for (const [connectionId, connection] of sshConnections.entries()) {
+      if (connection.isConnected) {
+        const timeSinceLastActivity = Date.now() - connection.lastActivity.getTime();
 
-      // If no activity for 60 seconds, send a keep-alive
-      if (timeSinceLastActivity > 60000) {
-        try {
-          if (connection.shell) {
-            connection.shell.write('\0'); // Send null byte as keep-alive
+        // More frequent keep-alive to prevent disconnection
+        if (timeSinceLastActivity > 30000) { // Reduced from 60 to 30 seconds
+          try {
+            if (connection.shell) {
+              // Send a subtle keep-alive that doesn't interrupt the session
+              connection.shell.write(''); // Empty string instead of null byte
+              connection.lastActivity = new Date();
+            }
+          } catch (error) {
+            console.error(`Keep-alive failed for connection ${connectionId}:`, error);
+            // Don't immediately mark as disconnected, retry first
+            if (connection.shell) {
+              try {
+                // Try to restore shell if connection is still alive
+                connection.client.shell((err, shell) => {
+                  if (!err && shell) {
+                    connection.shell = shell;
+                    connection.lastActivity = new Date();
+                    sshConnections.set(connectionId, connection);
+                  }
+                });
+              } catch (restoreError) {
+                connection.isConnected = false;
+                mainWindow.webContents.send('ssh-output', {
+                  connectionId,
+                  data: `⚠️  Connection lost. Session will be restored automatically...\r\n`,
+                  type: 'info',
+                  timestamp: new Date()
+                });
+              }
+            }
           }
-          connection.lastActivity = new Date();
-        } catch (error) {
-          console.error(`Keep-alive failed for connection ${connectionId}:`, error);
-          // Connection is likely dead, mark as disconnected
-          connection.isConnected = false;
-          mainWindow.webContents.send('ssh-output', {
-            connectionId,
-            data: `⚠️  Connection lost. Attempting to reconnect...\r\n`,
-            type: 'error',
-            timestamp: new Date()
-          });
         }
       }
     }
-  }
-}, 30000); // Check every 30 seconds
+  }, 10000); // Check every 10 seconds for better responsiveness
 
 // SSH IPC Handlers
 ipcMain.handle('ssh-connect', async (event, connectionConfig) => {
@@ -272,9 +286,20 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
   const connection = sshConnections.get(connectionId)
   if (!connection || !connection.isConnected) return false
 
-  // ✅ اقفل أي shell قديم
+  // ✅ إذا كان لديه shell موجود ونشط، لا تعيد إنشاءه
+  if (connection.shell && !connection.shell.destroyed) {
+    connection.lastActivity = new Date()
+    sshConnections.set(connectionId, connection)
+    return true
+  }
+
+  // ✅ أغلق أي shell قديم فقط إذا كان موجود ومدمر
   if (connection.shell) {
-    try { connection.shell.end() } catch {}
+    try { 
+      if (!connection.shell.destroyed) {
+        connection.shell.end() 
+      }
+    } catch {}
     connection.shell = null
   }
 
@@ -288,21 +313,32 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
       connection.shell = shell
       sshConnections.set(connectionId, connection)
 
-      mainWindow.webContents.send('ssh-output', {
-        connectionId,
-        data: '🚀 Interactive shell started. Ready for commands...\r\n',
-        type: 'info',
-        timestamp: new Date()
-      })
+      // إرسال رسالة ترحيب فقط عند إنشاء shell جديد
+      const isFirstTime = !connection.lastActivity || 
+        (Date.now() - connection.lastActivity.getTime()) > 300000 // 5 minutes
+
+      if (isFirstTime) {
+        mainWindow.webContents.send('ssh-output', {
+          connectionId,
+          data: '🚀 Interactive shell started. Ready for commands...\r\n',
+          type: 'info',
+          timestamp: new Date()
+        })
+      }
 
       shell.on('data', (data: Buffer) => {
         connection.lastActivity = new Date()
-        mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: data.toString(),
-          type: 'stdout',
-          timestamp: new Date()
-        })
+        const outputData = data.toString()
+        
+        // تجنب إرسال البيانات المكررة أو المطالبات الزائدة
+        if (!outputData.includes('ubuntu@ubutnu:~$ ubuntu@ubutnu:~$')) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: outputData,
+            type: 'stdout',
+            timestamp: new Date()
+          })
+        }
       })
 
       shell.stderr.on('data', (data: Buffer) => {
@@ -315,12 +351,27 @@ ipcMain.handle('ssh-start-shell', async (event, connectionId) => {
       })
 
       shell.on('close', () => {
-        mainWindow.webContents.send('ssh-output', {
-          connectionId,
-          data: '\r\n💀 Shell session ended\r\n',
-          type: 'info',
-          timestamp: new Date()
-        })
+        // فقط أرسل رسالة الإغلاق إذا كان الإغلاق غير متوقع
+        if (connection.isConnected) {
+          mainWindow.webContents.send('ssh-output', {
+            connectionId,
+            data: '\r\n💀 Shell session ended unexpectedly. Reconnecting...\r\n',
+            type: 'info',
+            timestamp: new Date()
+          })
+          
+          // محاولة إعادة إنشاء الـ shell تلقائياً
+          setTimeout(() => {
+            if (connection.isConnected) {
+              connection.client.shell((err, newShell) => {
+                if (!err && newShell) {
+                  connection.shell = newShell
+                  sshConnections.set(connectionId, connection)
+                }
+              })
+            }
+          }, 1000)
+        }
       })
 
       resolve(true)

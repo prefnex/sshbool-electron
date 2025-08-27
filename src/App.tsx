@@ -169,17 +169,23 @@ const AppContent: React.FC = () => {
           <div className="flex items-center gap-3 mr-4">
             {connections.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-2 h-2 bg-green-500 rounded-full status-indicator"></div>
-                <span>{connections.length} {t('sidebar.connections')}</span>
+                <div className="w-2 h-2 bg-green-500 rounded-full status-indicator animate-pulse"></div>
+                <span>{connections.length} Active</span>
               </div>
             )}
             
             {terminals.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-2 h-2 bg-blue-500 rounded-full status-indicator"></div>
-                <span>{terminals.length} {t('sidebar.terminals')}</span>
+                <div className="w-2 h-2 bg-blue-500 rounded-full status-indicator animate-pulse"></div>
+                <span>{terminals.length} SSH</span>
               </div>
             )}
+            
+            {/* Memory Usage Indicator */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+              <span>{Math.round(performance.memory?.usedJSHeapSize / 1024 / 1024 || 0)}MB</span>
+            </div>
           </div>
 
           {/* Window Controls */}

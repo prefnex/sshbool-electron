@@ -121,7 +121,15 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
   const handleSave = () => {
     // Save settings
     localStorage.setItem('flyterm-settings', JSON.stringify(settings))
-    toast.success('✅ تم حفظ الإعدادات بنجاح')
+    toast.success('✅ Settings saved successfully!', {
+      duration: 2000,
+      style: {
+        background: 'hsl(var(--success))',
+        color: 'hsl(var(--success-foreground))',
+        border: '1px solid hsl(var(--border))',
+        borderRadius: '8px',
+      }
+    })
   }
 
   const handleReset = () => {
@@ -257,29 +265,29 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
             </CardHeader>
 
             <CardContent className="flex-1 overflow-hidden">
-              <Tabs defaultValue="appearance" className="h-full flex flex-col" onValueChange={(value) => console.log('Tab changed to:', value)}>
+              <Tabs defaultValue="appearance" className="h-full flex flex-col">
                 <TabsList className="grid w-full grid-cols-6 p-1 bg-muted/30">
-                  <TabsTrigger value="appearance" className="flex items-center gap-2">
+                  <TabsTrigger value="appearance" className="flex items-center gap-2 text-xs">
                     <Palette className="w-4 h-4" />
                     Appearance
                   </TabsTrigger>
-                  <TabsTrigger value="terminal" className="flex items-center gap-2">
+                  <TabsTrigger value="terminal" className="flex items-center gap-2 text-xs">
                     <Terminal className="w-4 h-4" />
                     Terminal
                   </TabsTrigger>
-                  <TabsTrigger value="language" className="flex items-center gap-2">
+                  <TabsTrigger value="language" className="flex items-center gap-2 text-xs">
                     <Globe className="w-4 h-4" />
                     Language
                   </TabsTrigger>
-                  <TabsTrigger value="audio" className="flex items-center gap-2">
+                  <TabsTrigger value="audio" className="flex items-center gap-2 text-xs">
                     <Volume2 className="w-4 h-4" />
                     Audio
                   </TabsTrigger>
-                  <TabsTrigger value="security" className="flex items-center gap-2">
+                  <TabsTrigger value="security" className="flex items-center gap-2 text-xs">
                     <Shield className="w-4 h-4" />
                     Security
                   </TabsTrigger>
-                  <TabsTrigger value="advanced" className="flex items-center gap-2">
+                  <TabsTrigger value="advanced" className="flex items-center gap-2 text-xs">
                     <Code className="w-4 h-4" />
                     Advanced
                   </TabsTrigger>
@@ -431,6 +439,17 @@ const EnhancedSettingsModal: React.FC<EnhancedSettingsModalProps> = ({ isOpen, o
                           <Switch 
                             checked={settings.copyOnSelect}
                             onCheckedChange={(checked) => handleSettingChange('copyOnSelect', checked)}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>لصق بالكليك الأيمن</Label>
+                            <p className="text-xs text-muted-foreground">لصق النص من الحافظة بالنقر بالزر الأيمن</p>
+                          </div>
+                          <Switch 
+                            checked={settings.pasteOnRightClick}
+                            onCheckedChange={(checked) => handleSettingChange('pasteOnRightClick', checked)}
                           />
                         </div>
                         
