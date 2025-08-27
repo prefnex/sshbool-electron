@@ -28,6 +28,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Progress } from './ui/progress'
 import { sshService } from '../services/ssh-service'
 import { useTerminalStore } from '../store/terminal-store'
+import { useTransferStore } from '../store/transfer-store'
+import TransferManager from './TransferManager'
 import { cn } from '../lib/utils'
 import toast from 'react-hot-toast'
 
@@ -48,7 +50,14 @@ interface SftpTabProps {
 }
 
 const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
-  const { connections, sftpTabs, updateSftpPath } = useTerminalStore()
+  const { 
+    connections, 
+    sftpTabs, 
+    updateSftpPath, 
+    setSftpConnectionStatus, 
+    updateSftpPathHistory 
+  } = useTerminalStore()
+  const { addTask, tasks, activeTasks } = useTransferStore()
   const sftpTab = sftpTabs.find(s => s.id === sftpId)
   const connection = sftpTab ? connections.find(c => c.id === sftpTab.connectionId) : null
 
@@ -61,15 +70,38 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
   const [transferProgress, setTransferProgress] = useState<{ [key: string]: number }>({})
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
-  const [pathHistory, setPathHistory] = useState<string[]>([])
+  const [showTransferManager, setShowTransferManager] = useState(false)
 
   const currentPath = sftpTab?.currentPath || '/'
 
   useEffect(() => {
     if (isActive && sftpTab && connection) {
       loadDirectory(currentPath)
+      
+      // Set connection status
+      if (!sftpTab.isConnected) {
+        setSftpConnectionStatus(sftpTab.id, true)
+      }
     }
   }, [isActive, sftpTab, connection, currentPath])
+
+  // Monitor SFTP connection health
+  useEffect(() => {
+    if (!sftpTab || !connection) return
+
+    const healthCheck = setInterval(async () => {
+      try {
+        const isConnected = await sshService.isConnected(connection.id)
+        if (sftpTab.isConnected !== isConnected) {
+          setSftpConnectionStatus(sftpTab.id, isConnected)
+        }
+      } catch (error) {
+        setSftpConnectionStatus(sftpTab.id, false)
+      }
+    }, 10000) // Check every 10 seconds
+
+    return () => clearInterval(healthCheck)
+  }, [sftpTab, connection])
 
   const loadDirectory = async (path: string) => {
     if (!connection || !sftpTab) return
@@ -99,15 +131,17 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
 
   const navigateToPath = (path: string) => {
     if (path !== currentPath && sftpTab) {
-      setPathHistory(prev => [...prev, currentPath])
+      const newHistory = [...(sftpTab.pathHistory || []), currentPath]
+      updateSftpPathHistory(sftpTab.id, newHistory)
       updateSftpPath(sftpTab.id, path)
     }
   }
 
   const goBack = () => {
-    if (pathHistory.length > 0 && sftpTab) {
-      const previousPath = pathHistory[pathHistory.length - 1]
-      setPathHistory(prev => prev.slice(0, -1))
+    if (sftpTab && sftpTab.pathHistory && sftpTab.pathHistory.length > 0) {
+      const previousPath = sftpTab.pathHistory[sftpTab.pathHistory.length - 1]
+      const newHistory = sftpTab.pathHistory.slice(0, -1)
+      updateSftpPathHistory(sftpTab.id, newHistory)
       updateSftpPath(sftpTab.id, previousPath)
     }
   }
@@ -186,7 +220,7 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
               variant="outline"
               size="sm"
               onClick={goBack}
-              disabled={pathHistory.length === 0}
+              disabled={!sftpTab?.pathHistory || sftpTab.pathHistory.length === 0}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
@@ -244,6 +278,17 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Transfer Manager Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTransferManager(true)}
+              className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border-blue-500/30"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Transfers ({activeTasks.size})
+            </Button>
+            
             <Button
               variant="outline"
               size="sm"
@@ -260,8 +305,37 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
                 const input = document.createElement('input')
                 input.type = 'file'
                 input.multiple = true
+                input.onchange = (e) => {
+                  const files = (e.target as HTMLInputElement).files
+                  if (!files || !connection) return
+                  
+                  Array.from(files).forEach(file => {
+                    const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`
+                    
+                    // Add task to transfer manager
+                    const taskId = addTask({
+                      type: 'upload',
+                      fileName: file.name,
+                      localPath: URL.createObjectURL(file),
+                      remotePath,
+                      connectionId: connection.id,
+                      connectionName: connection.name,
+                      status: 'pending',
+                      size: file.size
+                    })
+                    
+                    toast.success(`📤 Upload queued: ${file.name}`)
+                    
+                    // Start upload (this would be handled by a transfer service)
+                    // For now, just simulate progress
+                    setTimeout(() => {
+                      toast.info(`⏳ Starting upload: ${file.name}`)
+                    }, 1000)
+                  })
+                }
                 input.click()
               }}
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
             >
               <Upload className="w-4 h-4 mr-1" />
               Upload Files
@@ -324,7 +398,34 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {file.type === 'file' && (
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!connection) return
+                              
+                              const remotePath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`
+                              const localPath = `/tmp/${file.name}` // Default download location
+                              
+                              // Add download task
+                              const taskId = addTask({
+                                type: 'download',
+                                fileName: file.name,
+                                localPath,
+                                remotePath,
+                                connectionId: connection.id,
+                                connectionName: connection.name,
+                                status: 'pending',
+                                size: file.size
+                              })
+                              
+                              toast.success(`📥 Download queued: ${file.name}`)
+                              
+                              // Start download (this would be handled by a transfer service)
+                              setTimeout(() => {
+                                toast.info(`⏳ Starting download: ${file.name}`)
+                              }, 1000)
+                            }}
+                          >
                             <Download className="w-4 h-4 mr-2" />
                             Download
                           </DropdownMenuItem>
@@ -398,6 +499,12 @@ const SftpTab: React.FC<SftpTabProps> = ({ sftpId, isActive, onClose }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Transfer Manager */}
+      <TransferManager 
+        isOpen={showTransferManager} 
+        onClose={() => setShowTransferManager(false)} 
+      />
     </div>
   )
 }

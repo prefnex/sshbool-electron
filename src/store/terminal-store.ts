@@ -31,6 +31,9 @@ export interface SftpTab {
   currentPath: string
   isActive: boolean
   lastActivity: Date
+  isConnected: boolean
+  pathHistory: string[]
+  sessionData?: any // For storing SFTP session data
 }
 
 export interface TerminalState {
@@ -60,10 +63,12 @@ export interface TerminalState {
   updateTerminalActivity: (id: string) => void
   setTerminalUnread: (id: string, hasUnread: boolean) => void
   
-  addSftpTab: (sftpTab: Omit<SftpTab, 'id' | 'isActive' | 'lastActivity'>) => void
+  addSftpTab: (sftpTab: Omit<SftpTab, 'id' | 'isActive' | 'lastActivity' | 'isConnected' | 'pathHistory'>) => void
   removeSftpTab: (id: string) => void
   setActiveSftp: (id: string) => void
   updateSftpPath: (id: string, path: string) => void
+  setSftpConnectionStatus: (id: string, isConnected: boolean) => void
+  updateSftpPathHistory: (id: string, pathHistory: string[]) => void
   
   toggleSidebar: () => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
@@ -206,7 +211,10 @@ export const useTerminalStore = create<TerminalState>()(
           ...sftpTab,
           id: `sftp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           isActive: false,
-          lastActivity: new Date()
+          lastActivity: new Date(),
+          isConnected: false,
+          pathHistory: [],
+          currentPath: sftpTab.currentPath || '/'
         }
         
         return {
@@ -240,6 +248,18 @@ export const useTerminalStore = create<TerminalState>()(
       updateSftpPath: (id, path) => set((state) => ({
         sftpTabs: state.sftpTabs.map(sftp =>
           sftp.id === id ? { ...sftp, currentPath: path, lastActivity: new Date() } : sftp
+        )
+      })),
+
+      setSftpConnectionStatus: (id, isConnected) => set((state) => ({
+        sftpTabs: state.sftpTabs.map(sftp =>
+          sftp.id === id ? { ...sftp, isConnected, lastActivity: new Date() } : sftp
+        )
+      })),
+
+      updateSftpPathHistory: (id, pathHistory) => set((state) => ({
+        sftpTabs: state.sftpTabs.map(sftp =>
+          sftp.id === id ? { ...sftp, pathHistory, lastActivity: new Date() } : sftp
         )
       })),
       
